@@ -1,0 +1,732 @@
+import React, { useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  Pressable,
+} from 'react-native';
+
+import { LinearGradient } from 'expo-linear-gradient';
+
+import {
+  Ionicons,
+  MaterialIcons,
+  MaterialCommunityIcons,
+} from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+
+import { useCards } from '@/src/hooks/useCards';
+import { useTransactions } from '@/src/hooks/useTransactions';
+import { formatCurrency, formatDateTime } from '@/src/utils/format';
+import type { Card, Transaction } from '@/src/types';
+
+/** Derives the human-readable multiplier from a reward label like "3x Dining". */
+function rewardMultiplier(label: string): string {
+  const match = label.match(/^(\d+x)/i);
+  return match ? match[1] : '—';
+}
+
+/** Returns the savings string for a transaction, formatted per reward kind. */
+function rewardSavings(tx: Transaction): string {
+  const { reward, currency } = tx;
+  if (reward.kind === 'cashback') return formatCurrency(reward.value, currency);
+  if (reward.kind === 'none') return '—';
+  return `${reward.value.toLocaleString()} ${reward.kind}`;
+}
+
+/**
+ * Transaction detail / routing-flow screen.
+ *
+ * Reads the transaction id from `/transactions/[id]` and renders the AI's
+ * card-selection decision, reward breakdown, and a "Smart Routing Flow"
+ * visualization for that specific payment. Falls back to the latest
+ * transaction if the id is missing or unresolved.
+ */
+export default function TransactionDetailScreen() {
+  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { transactions } = useTransactions();
+  const { cards: walletCards } = useCards();
+
+  const transaction = useMemo(
+    () => transactions.find((t) => t.id === id) ?? transactions[0],
+    [transactions, id],
+  );
+
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const transactionCard = useMemo(
+    () => walletCards.find((c) => c.id === transaction?.cardId),
+    [walletCards, transaction],
+  );
+
+  // Card list rendered in the "Smart Routing Flow" visualization. The
+  // chosen card for this transaction is flagged active so it lights up
+  // the path.
+  const routingCards = useMemo(() => {
+    return walletCards.map((c) => ({
+      name: `${c.nickname ?? c.bankName ?? 'Card'} • ${c.last4}`,
+      active: transaction?.cardId === c.id,
+      subtitle: transaction?.cardId === c.id ? transaction.reward.label : undefined,
+    }));
+  }, [walletCards, transaction]);
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+      >
+        {/* HEADER */}
+        <View style={styles.header}>
+          <View style={{ width: 40 }} />
+
+          <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
+            <Ionicons name="close" size={22} color="#C5C5D9" />
+          </TouchableOpacity>
+        </View>
+
+        {/* SUCCESS HERO */}
+        <View style={styles.hero}>
+          <View style={styles.successGlow} />
+
+          <View style={styles.successCircle}>
+            <Ionicons
+              name="checkmark-circle"
+              size={54}
+              color="#7DFFA2"
+            />
+          </View>
+
+          <Text style={styles.amount}>
+            {transaction
+              ? formatCurrency(transaction.amount, transaction.currency)
+              : '—'}
+          </Text>
+
+          <Text style={styles.paymentText}>
+            {transaction ? `Paid at ${transaction.merchant}` : 'No transactions yet'}
+          </Text>
+        </View>
+
+        {/* BREAKDOWN CARD */}
+        <View style={styles.glassCard}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconCircle}>
+              <MaterialIcons
+                name="auto-awesome"
+                size={22}
+                color="#BBC3FF"
+              />
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>
+                {transaction
+                  ? `Optimized via ${
+                      transactionCard?.nickname ?? 'best-fit card'
+                    }`
+                  : 'Awaiting first transaction'}
+              </Text>
+
+              <Text style={styles.cardSubtitle}>AI SELECTION</Text>
+            </View>
+          </View>
+
+          <View style={styles.statsRow}>
+            <View>
+              <View style={styles.statLabelRow}>
+                <Ionicons
+                  name="wallet"
+                  size={14}
+                  color="#999"
+                />
+
+                <Text style={styles.statLabel}>SAVINGS</Text>
+              </View>
+
+              <Text style={styles.successValue}>
+                {transaction ? rewardSavings(transaction) : '—'}
+              </Text>
+            </View>
+
+            <View>
+              <View style={styles.statLabelRow}>
+                <Ionicons
+                  name="flash"
+                  size={14}
+                  color="#999"
+                />
+
+                <Text style={styles.statLabel}>MULTIPLIER</Text>
+              </View>
+
+              <Text style={styles.primaryValue}>
+                {transaction ? rewardMultiplier(transaction.reward.label) : '—'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ROUTING FLOW */}
+        <View style={styles.glassCard}>
+          <View style={styles.routingHeader}>
+            <Text style={styles.routingTitle}>
+              Smart Routing Flow
+            </Text>
+
+            <MaterialCommunityIcons
+              name="source-branch"
+              size={20}
+              color="#aaa"
+            />
+          </View>
+
+          <View style={styles.routingContainer}>
+            {/* AI CORE */}
+            <View style={styles.aiCore}>
+              <View style={styles.aiCoreInner}>
+                <Ionicons
+                  name="sparkles"
+                  size={28}
+                  color="#BBC3FF"
+                />
+              </View>
+            </View>
+
+            {/* LINES */}
+            <View style={styles.linesContainer}>
+              {routingCards.map((item, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.line,
+                    item.active && styles.activeLine,
+                  ]}
+                />
+              ))}
+            </View>
+
+            {/* CARD LIST */}
+            <View style={styles.cardList}>
+              {routingCards.map((item, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.routeCard,
+                    item.active && styles.activeRouteCard,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.routeCardIcon,
+                      item.active &&
+                        styles.activeRouteCardIcon,
+                    ]}
+                  >
+                    <Ionicons
+                      name="card"
+                      size={18}
+                      color={
+                        item.active ? '#7DFFA2' : '#aaa'
+                      }
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.routeCardText,
+                        item.active &&
+                          styles.activeRouteCardText,
+                      ]}
+                    >
+                      {item.name}
+                    </Text>
+
+                    {item.subtitle && (
+                      <Text style={styles.routeCardSub}>
+                        {item.subtitle}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* BUTTON */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          disabled={!transaction}
+          onPress={() => setDetailsOpen(true)}
+        >
+          <LinearGradient
+            colors={['#3D5AFE', '#5B74FF']}
+            style={[styles.button, !transaction && { opacity: 0.4 }]}
+          >
+            <Text style={styles.buttonText}>View Transaction Details</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <TransactionDetailsModal
+        visible={detailsOpen && !!transaction}
+        transaction={transaction}
+        card={transactionCard}
+        onClose={() => setDetailsOpen(false)}
+      />
+    </SafeAreaView>
+  );
+}
+
+interface TransactionDetailsModalProps {
+  visible: boolean;
+  transaction?: Transaction;
+  card?: Card;
+  onClose: () => void;
+}
+
+/**
+ * Bottom-sheet style modal surfacing the full breakdown of a transaction:
+ * timestamp, card used, merchant, amount, reward, and the AI's routing
+ * rationale. Kept colocated with the screen because no other route reuses it.
+ */
+function TransactionDetailsModal({
+  visible,
+  transaction,
+  card,
+  onClose,
+}: TransactionDetailsModalProps) {
+  if (!transaction) return null;
+
+  const cardLabel = card
+    ? `${card.nickname ?? card.bankName ?? 'Card'} •••• ${card.last4}`
+    : '—';
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={styles.modalSheet} onPress={() => {}}>
+          <View style={styles.modalHandle} />
+
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Transaction Details</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <Ionicons name="close" size={22} color="#C5C5D9" />
+            </TouchableOpacity>
+          </View>
+
+          <DetailRow label="Reference" value={transaction.id.toUpperCase()} mono />
+          <DetailRow label="Date" value={formatDateTime(transaction.occurredAt)} />
+          <DetailRow label="Merchant" value={transaction.merchant} />
+          {transaction.category && (
+            <DetailRow label="Category" value={transaction.category} />
+          )}
+          <DetailRow label="Card used" value={cardLabel} />
+          <DetailRow
+            label="Amount"
+            value={formatCurrency(transaction.amount, transaction.currency)}
+            strong
+          />
+          <DetailRow
+            label={`Reward (${transaction.reward.kind})`}
+            value={`${transaction.reward.label} · ${rewardSavings(transaction)}`}
+          />
+
+          <View style={styles.reasonBox}>
+            <MaterialIcons name="auto-awesome" size={16} color="#BBC3FF" />
+            <Text style={styles.reasonText}>
+              SmartPay routed this payment to {cardLabel} to maximize{' '}
+              {transaction.reward.label.toLowerCase()} rewards.
+            </Text>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  strong,
+  mono,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  mono?: boolean;
+}) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.detailValue,
+          strong && styles.detailValueStrong,
+          mono && styles.detailValueMono,
+        ]}
+        numberOfLines={1}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#101416',
+  },
+
+  scroll: {
+    padding: 24,
+    paddingBottom: 50,
+  },
+
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  closeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  hero: {
+    alignItems: 'center',
+    marginTop: 40,
+    marginBottom: 40,
+  },
+
+  successGlow: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    backgroundColor: '#7DFFA2',
+    borderRadius: 100,
+    opacity: 0.12,
+  },
+
+  successCircle: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: 'rgba(125,255,162,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(125,255,162,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  amount: {
+    color: '#fff',
+    fontSize: 52,
+    fontWeight: '700',
+    marginTop: 24,
+  },
+
+  paymentText: {
+    color: '#aaa',
+    fontSize: 16,
+    marginTop: 8,
+  },
+
+  glassCard: {
+    backgroundColor: 'rgba(29,32,34,0.7)',
+    borderRadius: 28,
+    padding: 22,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(187,195,255,0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+
+  cardTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  cardSubtitle: {
+    color: '#888',
+    fontSize: 11,
+    marginTop: 4,
+    letterSpacing: 1,
+  },
+
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 22,
+  },
+
+  statLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  statLabel: {
+    color: '#888',
+    fontSize: 11,
+    marginLeft: 5,
+  },
+
+  successValue: {
+    color: '#7DFFA2',
+    fontSize: 28,
+    fontWeight: '700',
+    marginTop: 10,
+  },
+
+  primaryValue: {
+    color: '#BBC3FF',
+    fontSize: 28,
+    fontWeight: '700',
+    marginTop: 10,
+  },
+
+  routingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+
+  routingTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  routingContainer: {
+    flexDirection: 'row',
+  },
+
+  aiCore: {
+    width: 70,
+    alignItems: 'center',
+    paddingTop: 80,
+  },
+
+  aiCoreInner: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#1d2022',
+    borderWidth: 1,
+    borderColor: '#444656',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  linesContainer: {
+    width: 40,
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+
+  line: {
+    height: 2,
+    backgroundColor: '#444656',
+    marginVertical: 18,
+    opacity: 0.3,
+  },
+
+  activeLine: {
+    backgroundColor: '#7DFFA2',
+    opacity: 1,
+    shadowColor: '#7DFFA2',
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
+  },
+
+  cardList: {
+    flex: 1,
+  },
+
+  routeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    marginBottom: 10,
+    opacity: 0.45,
+  },
+
+  activeRouteCard: {
+    opacity: 1,
+    backgroundColor: 'rgba(125,255,162,0.08)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(125,255,162,0.2)',
+  },
+
+  routeCardIcon: {
+    width: 36,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#323538',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+
+  activeRouteCardIcon: {
+    backgroundColor: 'rgba(125,255,162,0.1)',
+  },
+
+  routeCardText: {
+    color: '#aaa',
+    fontSize: 13,
+  },
+
+  activeRouteCardText: {
+    color: '#7DFFA2',
+    fontWeight: '700',
+  },
+
+  routeCardSub: {
+    color: '#7DFFA2',
+    fontSize: 10,
+    marginTop: 2,
+  },
+
+  button: {
+    height: 58,
+    borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 30,
+  },
+
+  buttonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+
+  modalSheet: {
+    backgroundColor: '#1A1D24',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+
+  modalHandle: {
+    alignSelf: 'center',
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    marginBottom: 16,
+  },
+
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  modalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+
+  detailLabel: {
+    color: '#9AA0B4',
+    fontSize: 13,
+  },
+
+  detailValue: {
+    color: '#E0E3E6',
+    fontSize: 14,
+    maxWidth: '60%',
+    textAlign: 'right',
+  },
+
+  detailValueStrong: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  detailValueMono: {
+    fontFamily: 'Courier',
+    letterSpacing: 0.5,
+  },
+
+  reasonBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 18,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: 'rgba(187,195,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(187,195,255,0.18)',
+  },
+
+  reasonText: {
+    flex: 1,
+    color: '#BBC3FF',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+});
