@@ -6,17 +6,38 @@
  * UI. This also enforces a minimal API surface for screens.
  */
 
-import { useAuthStore, selectIsAuthenticated, selectRole } from '@/src/store/auth.store';
+import { useAuthStore } from '@/src/store/auth.store';
+import type { AuthSession, LoginPayload, RegisterPayload, UserRole } from '@/src/types';
 
 export function useAuth() {
-  const session = useAuthStore((s) => s.session);
-  const isHydrating = useAuthStore((s) => s.isHydrating);
-  const isSubmitting = useAuthStore((s) => s.isSubmitting);
-  const error = useAuthStore((s) => s.error);
-  const signIn = useAuthStore((s) => s.signIn);
-  const signOut = useAuthStore((s) => s.signOut);
-  const isAuthenticated = useAuthStore(selectIsAuthenticated);
-  const role = useAuthStore(selectRole);
+  const store = useAuthStore();
 
-  return { session, role, isAuthenticated, isHydrating, isSubmitting, error, signIn, signOut };
+  const {
+    session,
+    isHydrating,
+    isSubmitting,
+    error,
+    login,
+    register,
+    signOut,
+  } = store;
+
+  const isAuthenticated = session !== null;
+  const role: UserRole | null = session?.user.role ?? null;
+
+  /** @deprecated Use `login` instead. */
+  const signIn = login;
+
+  return {
+    session,
+    role,
+    isAuthenticated,
+    isHydrating,
+    isSubmitting,
+    error,
+    login,
+    register,
+    signIn,
+    signOut,
+  };
 }

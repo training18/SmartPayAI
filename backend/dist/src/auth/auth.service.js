@@ -48,6 +48,7 @@ const common_1 = require("@nestjs/common");
 const jwt_1 = require("@nestjs/jwt");
 const config_1 = require("@nestjs/config");
 const bcrypt = __importStar(require("bcrypt"));
+const client_1 = require("@prisma/client");
 const prisma_1 = require("../prisma");
 const virtual_cards_service_1 = require("../virtual-cards/virtual-cards.service");
 let AuthService = class AuthService {
@@ -72,14 +73,18 @@ let AuthService = class AuthService {
             throw new common_1.ConflictException('Email already registered');
         }
         const passwordHash = await bcrypt.hash(dto.password, AuthService_1.SALT_ROUNDS);
+        const role = dto.role ?? client_1.UserRole.PERSONAL;
         const user = await this.prisma.user.create({
             data: {
                 email: dto.email,
                 passwordHash,
                 fullName: dto.fullName,
+                role,
             },
         });
-        await this.virtualCards.createForUser(user.id, user.fullName);
+        if (role === client_1.UserRole.PERSONAL) {
+            await this.virtualCards.createForUser(user.id, user.fullName);
+        }
         const tokens = await this.generateTokens(user.id, user.email, user.role);
         await this.updateRefreshToken(user.id, tokens.refreshToken);
         this.logger.log(`User registered: ${user.email}`);

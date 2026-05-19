@@ -9,7 +9,9 @@ export declare const CARD_RECOMMENDATION_PROMPT: {
             id: string;
             bankName: string;
             cardType: string;
-            last4: string;
+            first4: string;
+            network: string;
+            networkLabel: string;
             cardAlias?: string;
             rewardType: string;
         }>;

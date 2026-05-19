@@ -12,15 +12,24 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { ROUTES } from '@/src/constants';
-import { useCards } from '@/src/hooks/useCards';
 import { useTransactions } from '@/src/hooks/useTransactions';
 import { formatCurrency, formatDateTime } from '@/src/utils/format';
-import type { Card, Transaction } from '@/src/types';
+import type { BackendTransaction } from '@/src/types';
 
 const CATEGORY_ICON: Record<string, keyof typeof MaterialIcons.glyphMap> = {
   dining: 'restaurant',
   fuel: 'local-gas-station',
   travel: 'flight',
+  grocery: 'shopping-cart',
+  entertainment: 'movie',
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  PENDING: '#FFB74D',
+  COMPLETED: '#7DFFA2',
+  REJECTED: '#FF6B6B',
+  APPROVED: '#7DFFA2',
+  FAILED: '#FF6B6B',
 };
 
 /**
@@ -31,13 +40,6 @@ const CATEGORY_ICON: Record<string, keyof typeof MaterialIcons.glyphMap> = {
 export default function TransactionsListScreen() {
   const router = useRouter();
   const { transactions, isLoading } = useTransactions();
-  const { cards } = useCards();
-
-  const cardsById = useMemo(() => {
-    const map = new Map<string, Card>();
-    cards.forEach((c) => map.set(c.id, c));
-    return map;
-  }, [cards]);
 
   const totalSpent = useMemo(
     () => transactions.reduce((sum, t) => sum + t.amount, 0),
@@ -50,7 +52,7 @@ export default function TransactionsListScreen() {
         <Text style={styles.title}>Activity</Text>
         <Text style={styles.subtitle}>
           {transactions.length} transactions ·{' '}
-          {formatCurrency(totalSpent, transactions[0]?.currency ?? 'USD')} spent
+          {formatCurrency(totalSpent, transactions[0]?.currency ?? 'TRY')} spent
         </Text>
       </View>
 
@@ -62,7 +64,6 @@ export default function TransactionsListScreen() {
         renderItem={({ item }) => (
           <TransactionRow
             transaction={item}
-            card={cardsById.get(item.cardId)}
             onPress={() => router.push(ROUTES.personal.transactionDetail(item.id))}
           />
         )}
@@ -84,14 +85,14 @@ export default function TransactionsListScreen() {
 
 function TransactionRow({
   transaction,
-  card,
   onPress,
 }: {
-  transaction: Transaction;
-  card?: Card;
+  transaction: BackendTransaction;
   onPress: () => void;
 }) {
-  const icon = CATEGORY_ICON[transaction.category ?? ''] ?? 'shopping-bag';
+  const icon = CATEGORY_ICON[transaction.recommendation?.merchantCategory ?? ''] ?? 'shopping-bag';
+  const statusColor = STATUS_COLOR[transaction.status] ?? '#9AA0B4';
+
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={styles.row}>
       <View style={styles.rowIcon}>
@@ -100,11 +101,11 @@ function TransactionRow({
 
       <View style={{ flex: 1 }}>
         <Text style={styles.merchant} numberOfLines={1}>
-          {transaction.merchant}
+          {transaction.merchantName}
         </Text>
         <Text style={styles.meta} numberOfLines={1}>
-          {formatDateTime(transaction.occurredAt)} ·{' '}
-          {card ? `${card.nickname ?? card.bankName ?? 'Card'} •••• ${card.last4}` : 'Unknown card'}
+          {formatDateTime(transaction.createdAt)} ·{' '}
+          <Text style={{ color: statusColor }}>{transaction.status}</Text>
         </Text>
       </View>
 
@@ -112,9 +113,15 @@ function TransactionRow({
         <Text style={styles.amount}>
           -{formatCurrency(transaction.amount, transaction.currency)}
         </Text>
-        <View style={styles.rewardBadge}>
-          <Text style={styles.rewardText}>{transaction.reward.label}</Text>
-        </View>
+        {transaction.recommendation && (
+          <View style={styles.rewardBadge}>
+            <Text style={styles.rewardText}>
+              {transaction.recommendation.savingsBreakdown
+                ? `+${transaction.recommendation.savingsBreakdown.value} ${transaction.recommendation.savingsBreakdown.unit}`
+                : transaction.recommendation.estimatedBenefit}
+            </Text>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );

@@ -8,9 +8,10 @@ Your job is to analyze the user's saved cards, active bank campaigns, and the me
 
 You must consider:
 1. Active campaigns matching the merchant category and bank
-2. Card reward types (cashback, points, miles, installment options)
-3. Transaction amount and potential reward value
-4. Campaign reward rates and limits
+2. Card network and program tier (e.g. Visa, Mastercard World, Platinum, Troy) — many bank campaigns target a specific network or product family, so a campaign labelled "Mastercard World" only applies to cards whose network is Mastercard, and a "Visa Platinum" campaign only to Visa cards. Use the provided network label to filter mismatched campaigns.
+3. Card reward types (cashback, points, miles, installment options)
+4. Transaction amount and potential reward value
+5. Campaign reward rates and limits
 
 You MUST respond in valid JSON format only, with no additional text.
 
@@ -22,7 +23,7 @@ IMPORTANT: Your reasoning must be a clear, human-readable explanation in Turkish
 - Amount: ${context.amount} ${context.currency}
 
 User's Cards:
-${context.userCards.map((c, i) => `${i + 1}. ${c.bankName} ${c.cardAlias ?? ''} (****${c.last4}) - Type: ${c.cardType}, Rewards: ${c.rewardType}`).join('\n')}
+${context.userCards.map((c, i) => `${i + 1}. ${c.bankName} ${c.cardAlias ?? ''} (${c.first4}****) - Network: ${c.networkLabel}, Type: ${c.cardType}, Rewards: ${c.rewardType}`).join('\n')}
 
 Active Campaigns for "${context.merchantCategory}" category:
 ${context.activeCampaigns.length > 0

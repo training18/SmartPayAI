@@ -11,10 +11,8 @@
 
 import { create } from 'zustand';
 
-import { STORAGE_KEYS } from '@/src/constants';
-import { authService, type SignInPayload } from '@/src/services/auth.service';
-import { getItem, setItem } from '@/src/services/storage.service';
-import type { AuthSession, UserRole } from '@/src/types';
+import { authService } from '@/src/services/auth.service';
+import type { AuthSession, LoginPayload, RegisterPayload, UserRole } from '@/src/types';
 
 interface AuthState {
   session: AuthSession | null;
@@ -23,8 +21,16 @@ interface AuthState {
   error: string | null;
 
   hydrate: () => Promise<void>;
-  signIn: (payload: SignInPayload) => Promise<void>;
+  login: (payload: LoginPayload) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<void>;
   signOut: () => Promise<void>;
+  clearSession: () => void;
+
+  /**
+   * Legacy signIn adapter — maps old role-picker calls to the new login flow.
+   * @deprecated Use `login` or `register` instead.
+   */
+  signIn: (payload: LoginPayload) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -35,8 +41,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   async hydrate() {
     try {
-      const raw = await getItem(STORAGE_KEYS.session);
-      set({ session: raw ? (JSON.parse(raw) as AuthSession) : null });
+      const session = await authService.hydrateSession();
+      set({ session });
     } catch (e) {
       console.error('[auth] failed to hydrate session', e);
       set({ session: null });
@@ -45,14 +51,42 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  async signIn(payload) {
+  async login(payload) {
     set({ isSubmitting: true, error: null });
     try {
-      const session = await authService.signIn(payload);
-      await setItem(STORAGE_KEYS.session, JSON.stringify(session));
+      const session = await authService.login(payload);
       set({ session });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Sign-in failed';
+    } catch (e: unknown) {
+      const message = extractErrorMessage(e, 'Login failed');
+      set({ error: message });
+      throw e;
+    } finally {
+      set({ isSubmitting: false });
+    }
+  },
+
+  async register(payload) {
+    set({ isSubmitting: true, error: null });
+    try {
+      const session = await authService.register(payload);
+      set({ session });
+    } catch (e: unknown) {
+      const message = extractErrorMessage(e, 'Registration failed');
+      set({ error: message });
+      throw e;
+    } finally {
+      set({ isSubmitting: false });
+    }
+  },
+
+  /** Legacy adapter — delegates to login. */
+  async signIn(payload: LoginPayload): Promise<void> {
+    set({ isSubmitting: true, error: null });
+    try {
+      const session = await authService.login(payload);
+      set({ session });
+    } catch (e: unknown) {
+      const message = extractErrorMessage(e, 'Login failed');
       set({ error: message });
       throw e;
     } finally {
@@ -64,12 +98,30 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       await authService.signOut();
     } finally {
-      await setItem(STORAGE_KEYS.session, null);
-      set({ session: null });
+      set({ session: null, error: null });
     }
+  },
+
+  /** Called by the API client interceptor on failed refresh. */
+  clearSession() {
+    set({ session: null, error: null });
   },
 }));
 
-/** Selector helpers — encourage callers to subscribe to the minimum slice. */
+// ── Selector helpers ────────────────────────────────────────────────────────
+
 export const selectIsAuthenticated = (s: AuthState) => s.session !== null;
 export const selectRole = (s: AuthState): UserRole | null => s.session?.user.role ?? null;
+
+// ── Error extraction ────────────────────────────────────────────────────────
+
+function extractErrorMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object' && 'response' in e) {
+    const axiosError = e as { response?: { data?: { message?: string | string[] } } };
+    const msg = axiosError.response?.data?.message;
+    if (Array.isArray(msg)) return msg.join(', ');
+    if (typeof msg === 'string') return msg;
+  }
+  if (e instanceof Error) return e.message;
+  return fallback;
+}

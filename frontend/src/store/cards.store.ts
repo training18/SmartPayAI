@@ -1,26 +1,33 @@
 /**
  * Cards store — Personal user's wallet state.
+ *
+ * Manages both saved cards (real bank cards) and the virtual card (demo).
+ * Connected to backend via cards.service and virtual-card.service.
  */
 
 import { create } from 'zustand';
 
 import { cardsService } from '@/src/services/cards.service';
-import type { Card } from '@/src/types';
+import { virtualCardService } from '@/src/services/virtual-card.service';
+import type { SavedCard, VirtualCard, CreateSavedCardPayload, UpdateSavedCardPayload } from '@/src/types';
 
 interface CardsState {
-  cards: Card[];
+  cards: SavedCard[];
+  virtualCard: VirtualCard | null;
   isLoading: boolean;
   error: string | null;
 
   load: () => Promise<void>;
-  add: (card: Card) => Promise<void>;
+  loadVirtualCard: () => Promise<void>;
+  add: (payload: CreateSavedCardPayload) => Promise<SavedCard>;
   remove: (id: string) => Promise<void>;
-  update: (id: string, patch: Partial<Card>) => Promise<void>;
+  update: (id: string, patch: UpdateSavedCardPayload) => Promise<void>;
   reset: () => void;
 }
 
 export const useCardsStore = create<CardsState>((set, get) => ({
   cards: [],
+  virtualCard: null,
   isLoading: false,
   error: null,
 
@@ -37,9 +44,19 @@ export const useCardsStore = create<CardsState>((set, get) => ({
     }
   },
 
-  async add(card) {
-    const saved = await cardsService.save(card);
+  async loadVirtualCard() {
+    try {
+      const virtualCard = await virtualCardService.getMyCard();
+      set({ virtualCard });
+    } catch (e) {
+      console.warn('[cards] failed to load virtual card:', e);
+    }
+  },
+
+  async add(payload) {
+    const saved = await cardsService.save(payload);
     set((s) => ({ cards: [saved, ...s.cards] }));
+    return saved;
   },
 
   async remove(id) {
@@ -48,13 +65,13 @@ export const useCardsStore = create<CardsState>((set, get) => ({
   },
 
   async update(id, patch) {
-    await cardsService.update(id, patch);
+    const updated = await cardsService.update(id, patch);
     set((s) => ({
-      cards: s.cards.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+      cards: s.cards.map((c) => (c.id === id ? updated : c)),
     }));
   },
 
   reset() {
-    set({ cards: [], isLoading: false, error: null });
+    set({ cards: [], virtualCard: null, isLoading: false, error: null });
   },
 }));

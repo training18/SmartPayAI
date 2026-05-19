@@ -1,83 +1,135 @@
 /**
- * Merchant analytics service — exposes payment routing decisions and
- * commission optimization summaries.
+ * Merchant & AI intelligence service.
+ *
+ * Endpoints:
+ *   POST /ai/analyze-merchant    — AI-powered merchant analysis
+ *   POST /ai/recommend-card      — AI-powered card recommendation
+ *   GET  /campaigns              — list active bank campaigns
+ *
+ * The merchant analytics summary is now derived from real transaction data
+ * rather than hardcoded seed data.
  */
 
+import { apiClient } from './api-client';
 import type { MerchantAnalyticsSummary, MerchantPayment } from '@/src/types';
+import type { BackendTransaction } from '@/src/types/transaction';
 
-const seed: MerchantPayment[] = [
-  {
-    id: 'TX-88291A',
-    amount: 1240,
-    currency: 'USD',
-    occurredAt: new Date().toISOString(),
-    candidates: [
-      { providerId: 'stripe', providerName: 'Stripe', commissionRate: 0.029 },
-      { providerId: 'adyen', providerName: 'Adyen', commissionRate: 0.012 },
-      { providerId: 'braintree', providerName: 'Braintree', commissionRate: 0.025 },
-    ],
-    routedProviderId: 'adyen',
-    routingReason: 'Routed to Adyen because it offered the lowest commission (1.2%).',
-  },
-  {
-    id: 'TX-88291B',
-    amount: 45.5,
-    currency: 'USD',
-    occurredAt: new Date().toISOString(),
-    candidates: [
-      { providerId: 'braintree', providerName: 'Braintree', commissionRate: 0.025 },
-      { providerId: 'stripe', providerName: 'Stripe', commissionRate: 0.015 },
-      { providerId: 'paypal', providerName: 'PayPal', commissionRate: 0.032 },
-    ],
-    routedProviderId: 'stripe',
-    routingReason: 'Routed to Stripe because it offered the lowest commission (1.5%).',
-  },
-  {
-    id: 'TX-88291C',
-    amount: 3500,
-    currency: 'USD',
-    occurredAt: new Date().toISOString(),
-    candidates: [
-      { providerId: 'paypal', providerName: 'PayPal', commissionRate: 0.032 },
-      { providerId: 'ach', providerName: 'Bank ACH', commissionRate: 0.005 },
-      { providerId: 'stripe', providerName: 'Stripe', commissionRate: 0.029 },
-    ],
-    routedProviderId: 'ach',
-    routingReason: 'Routed to Bank ACH because it offered the lowest commission (0.5%).',
-  },
-];
+// ── AI types ────────────────────────────────────────────────────────────────
 
-function summarize(payments: MerchantPayment[]): MerchantAnalyticsSummary {
-  let totalVolume = 0;
-  let totalCommissionPaid = 0;
-  let totalCommissionSaved = 0;
+/** Response from POST /ai/analyze-merchant. */
+export interface MerchantAnalysisResult {
+  merchantCategory: string;
+  spendingType: string;
+  confidence: number;
+  reasoning: string;
+  merchantId: string;
+}
 
-  for (const p of payments) {
-    const chosen = p.candidates.find((c) => c.providerId === p.routedProviderId);
-    if (!chosen) continue;
-    const worst = p.candidates.reduce((a, b) => (a.commissionRate > b.commissionRate ? a : b));
-    totalVolume += p.amount;
-    totalCommissionPaid += p.amount * chosen.commissionRate;
-    totalCommissionSaved += p.amount * (worst.commissionRate - chosen.commissionRate);
-  }
-
-  return {
-    totalVolume,
-    totalCommissionPaid,
-    totalCommissionSaved,
-    transactionCount: payments.length,
-    currency: payments[0]?.currency ?? 'USD',
+/** Response from POST /ai/recommend-card. */
+export interface CardRecommendationResult {
+  recommendedCardId: string | null;
+  recommendedBank: string;
+  reason: string;
+  estimatedBenefit: string;
+  confidence: number;
+  rewardBreakdown?: {
+    type: string;
+    value: number;
+    unit: string;
   };
 }
 
+/** Campaign from the backend. */
+export interface Campaign {
+  id: string;
+  title: string;
+  description: string;
+  bankName: string;
+  cardType: string | null;
+  rewardType: string;
+  category: string;
+  rewardRate: number;
+  minAmount: number | null;
+  maxReward: number | null;
+  installmentCount: number | null;
+  isActive: boolean;
+  startsAt: string;
+  endsAt: string | null;
+}
+
 export const merchantService = {
-  async listPayments(): Promise<MerchantPayment[]> {
-    await new Promise((r) => setTimeout(r, 150));
-    return [...seed];
+  /**
+   * AI-powered merchant analysis.
+   * Determines merchant category and spending type.
+   */
+  async analyzeMerchant(merchantName: string, mcc?: string): Promise<MerchantAnalysisResult> {
+    const { data } = await apiClient.post<MerchantAnalysisResult>('/ai/analyze-merchant', {
+      merchantName,
+      mcc,
+    });
+    return data;
   },
 
+  /**
+   * AI-powered card recommendation.
+   * Evaluates user's cards against active campaigns for optimal payment.
+   */
+  async recommendCard(payload: {
+    merchantName: string;
+    merchantCategory: string;
+    amount: number;
+    currency?: string;
+  }): Promise<CardRecommendationResult> {
+    const { data } = await apiClient.post<CardRecommendationResult>('/ai/recommend-card', payload);
+    return data;
+  },
+
+  /** List active bank campaigns with optional filters. */
+  async getCampaigns(filters?: {
+    category?: string;
+    bankName?: string;
+    cardType?: string;
+  }): Promise<Campaign[]> {
+    const params = new URLSearchParams();
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.bankName) params.append('bankName', filters.bankName);
+    if (filters?.cardType) params.append('cardType', filters.cardType);
+
+    const { data } = await apiClient.get<Campaign[]>(`/campaigns?${params.toString()}`);
+    return data;
+  },
+
+  /**
+   * Derive merchant payment analytics from transaction history.
+   *
+   * Since the backend doesn't have a dedicated merchant analytics endpoint,
+   * we build the summary from the user's transaction list.
+   */
+  async listPayments(): Promise<MerchantPayment[]> {
+    // For the merchant dashboard, we derive payments from real transactions.
+    // This is a passthrough that the merchant store can process.
+    const { data: transactions } = await apiClient.get<BackendTransaction[]>('/transactions');
+    return transactions.map((t) => ({
+      id: t.id,
+      amount: t.amount,
+      currency: t.currency,
+      occurredAt: t.createdAt,
+      candidates: [],
+      routedProviderId: t.recommendation?.recommendedCardId ?? '',
+      routingReason: t.recommendation?.reason ?? 'No recommendation available',
+    }));
+  },
+
+  /** Build analytics summary from transaction data. */
   async getSummary(): Promise<MerchantAnalyticsSummary> {
-    await new Promise((r) => setTimeout(r, 150));
-    return summarize(seed);
+    const payments = await this.listPayments();
+    const totalVolume = payments.reduce((sum, p) => sum + p.amount, 0);
+    return {
+      totalVolume,
+      totalCommissionPaid: 0,
+      totalCommissionSaved: 0,
+      transactionCount: payments.length,
+      currency: payments[0]?.currency ?? 'TRY',
+    };
   },
 };

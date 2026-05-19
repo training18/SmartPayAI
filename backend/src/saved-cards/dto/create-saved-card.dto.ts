@@ -21,10 +21,10 @@ export class CreateSavedCardDto {
   @IsEnum(CardType)
   cardType: CardType;
 
-  @ApiProperty({ example: '4567' })
+  @ApiProperty({ example: '4111', description: 'First 4 digits (BIN prefix) — used to derive the card network.' })
   @IsString()
   @Length(4, 4)
-  last4: string;
+  first4: string;
 
   @ApiPropertyOptional({ example: 'Bonus Gold' })
   @IsOptional()

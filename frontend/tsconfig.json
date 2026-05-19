@@ -3,7 +3,75 @@
   "compilerOptions": {
     "strict": true,
     "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "customConditions": [],
     "paths": {
+      "react-native-reanimated": [
+        "./node_modules/react-native-reanimated/lib/typescript/index.d.ts"
+      ],
+      "react-native-reanimated/src": [
+        "./node_modules/react-native-reanimated/lib/typescript/index.d.ts"
+      ],
+      "react-native-reanimated/src/css": [
+        "./node_modules/react-native-reanimated/lib/typescript/css/index.d.ts"
+      ],
+      "react-native-reanimated/src/common": [
+        "./node_modules/react-native-reanimated/lib/typescript/common/index.d.ts"
+      ],
+      "react-native-reanimated/src/featureFlags": [
+        "./node_modules/react-native-reanimated/lib/typescript/featureFlags/index.d.ts"
+      ],
+      "react-native-reanimated/src/frameCallback": [
+        "./node_modules/react-native-reanimated/lib/typescript/frameCallback/index.d.ts"
+      ],
+      "react-native-reanimated/src/hook": [
+        "./node_modules/react-native-reanimated/lib/typescript/hook/index.d.ts"
+      ],
+      "react-native-reanimated/src/layoutReanimation": [
+        "./node_modules/react-native-reanimated/lib/typescript/layoutReanimation/index.d.ts"
+      ],
+      "react-native-reanimated/src/platformFunctions": [
+        "./node_modules/react-native-reanimated/lib/typescript/platformFunctions/index.d.ts"
+      ],
+      "react-native-reanimated/src/screenTransition": [
+        "./node_modules/react-native-reanimated/lib/typescript/screenTransition/index.d.ts"
+      ],
+      "react-native-reanimated/src/createAnimatedComponent": [
+        "./node_modules/react-native-reanimated/lib/typescript/createAnimatedComponent/index.d.ts"
+      ],
+      "react-native-reanimated/src/*": [
+        "./node_modules/react-native-reanimated/lib/typescript/*"
+      ],
+      "react-native-worklets": [
+        "./node_modules/react-native-worklets/lib/typescript/index.d.ts"
+      ],
+      "react-native-worklets/src": [
+        "./node_modules/react-native-worklets/lib/typescript/index.d.ts"
+      ],
+      "react-native-worklets/src/WorkletsModule": [
+        "./node_modules/react-native-worklets/lib/typescript/WorkletsModule/index.d.ts"
+      ],
+      "react-native-worklets/src/*": [
+        "./node_modules/react-native-worklets/lib/typescript/*"
+      ],
+      "react-native-screens": [
+        "./node_modules/react-native-screens/lib/typescript/index.d.ts"
+      ],
+      "react-native-screens/src": [
+        "./node_modules/react-native-screens/lib/typescript/index.d.ts"
+      ],
+      "react-native-screens/src/utils": [
+        "./node_modules/react-native-screens/lib/typescript/utils/index.d.ts"
+      ],
+      "react-native-screens/src/flags": [
+        "./node_modules/react-native-screens/lib/typescript/flags/index.d.ts"
+      ],
+      "react-native-screens/src/*": [
+        "./node_modules/react-native-screens/lib/typescript/*"
+      ],
+      "expo-router/src/*": [
+        "./node_modules/expo-router/build/*"
+      ],
       "@/*": [
         "./*"
       ]
@@ -14,5 +82,8 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
   ]
 }

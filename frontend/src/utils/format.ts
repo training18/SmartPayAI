@@ -18,8 +18,13 @@ export function formatPercent(rate: number, fractionDigits = 1): string {
   return `${(rate * 100).toFixed(fractionDigits)}%`;
 }
 
-export function formatMaskedPan(last4: string): string {
-  return `•••• •••• •••• ${last4}`;
+export function formatMaskedPan(first4: string): string {
+  return `${first4} •••• •••• ••••`;
+}
+
+export function formatFullPan(pan: string): string {
+  const digits = pan.replace(/[^0-9]/g, '');
+  return digits.replace(/(.{4})/g, '$1 ').trim();
 }
 
 export function formatExpiry(month: number, year: number): string {

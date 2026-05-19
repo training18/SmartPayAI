@@ -12,7 +12,7 @@ export declare class SavedCardsController {
         createdAt: Date;
         updatedAt: Date;
         userId: string;
-        last4: string;
+        first4: string;
         cardAlias: string | null;
         holderName: string | null;
         monthlyLimit: import("@prisma/client-runtime-utils").Decimal | null;
@@ -25,7 +25,7 @@ export declare class SavedCardsController {
         createdAt: Date;
         updatedAt: Date;
         userId: string;
-        last4: string;
+        first4: string;
         cardAlias: string | null;
         holderName: string | null;
         monthlyLimit: import("@prisma/client-runtime-utils").Decimal | null;
@@ -38,7 +38,7 @@ export declare class SavedCardsController {
         createdAt: Date;
         updatedAt: Date;
         userId: string;
-        last4: string;
+        first4: string;
         cardAlias: string | null;
         holderName: string | null;
         monthlyLimit: import("@prisma/client-runtime-utils").Decimal | null;
@@ -51,7 +51,7 @@ export declare class SavedCardsController {
         createdAt: Date;
         updatedAt: Date;
         userId: string;
-        last4: string;
+        first4: string;
         cardAlias: string | null;
         holderName: string | null;
         monthlyLimit: import("@prisma/client-runtime-utils").Decimal | null;

@@ -1,5 +1,14 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, MaxLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 
 export class RegisterDto {
   @ApiProperty({ example: 'user@smartpay.com' })
@@ -17,4 +26,9 @@ export class RegisterDto {
   @IsNotEmpty()
   @MaxLength(100)
   fullName: string;
+
+  @ApiPropertyOptional({ enum: UserRole, default: UserRole.PERSONAL })
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 }

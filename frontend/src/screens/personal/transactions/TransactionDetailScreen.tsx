@@ -22,21 +22,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCards } from '@/src/hooks/useCards';
 import { useTransactions } from '@/src/hooks/useTransactions';
 import { formatCurrency, formatDateTime } from '@/src/utils/format';
-import type { Card, Transaction } from '@/src/types';
-
-/** Derives the human-readable multiplier from a reward label like "3x Dining". */
-function rewardMultiplier(label: string): string {
-  const match = label.match(/^(\d+x)/i);
-  return match ? match[1] : '—';
-}
-
-/** Returns the savings string for a transaction, formatted per reward kind. */
-function rewardSavings(tx: Transaction): string {
-  const { reward, currency } = tx;
-  if (reward.kind === 'cashback') return formatCurrency(reward.value, currency);
-  if (reward.kind === 'none') return '—';
-  return `${reward.value.toLocaleString()} ${reward.kind}`;
-}
+import type { BackendTransaction } from '@/src/types';
 
 /**
  * Transaction detail / routing-flow screen.
@@ -59,21 +45,36 @@ export default function TransactionDetailScreen() {
 
   const [detailsOpen, setDetailsOpen] = useState(false);
 
-  const transactionCard = useMemo(
-    () => walletCards.find((c) => c.id === transaction?.cardId),
-    [walletCards, transaction],
-  );
-
-  // Card list rendered in the "Smart Routing Flow" visualization. The
-  // chosen card for this transaction is flagged active so it lights up
-  // the path.
+  // Card list rendered in the "Smart Routing Flow" visualization.
+  // Each card is decorated with either the winning subtitle (estimated benefit)
+  // or — for losers — the AI-authored rejection reason from `rejectedCards`.
   const routingCards = useMemo(() => {
-    return walletCards.map((c) => ({
-      name: `${c.nickname ?? c.bankName ?? 'Card'} • ${c.last4}`,
-      active: transaction?.cardId === c.id,
-      subtitle: transaction?.cardId === c.id ? transaction.reward.label : undefined,
-    }));
+    const rec = transaction?.recommendation;
+    const rejections = rec?.rejectedCards ?? [];
+    return walletCards.map((c) => {
+      const isWinner = rec?.recommendedCardId === c.id;
+      const rejection = rejections.find((r) => r.cardId === c.id);
+      return {
+        id: c.id,
+        name: `${c.cardAlias ?? c.bankName ?? 'Card'} • ${c.first4}`,
+        active: isWinner,
+        subtitle: isWinner
+          ? rec?.estimatedBenefit
+          : rejection?.reason,
+      };
+    });
   }, [walletCards, transaction]);
+
+  const campaignMatches = transaction?.recommendation?.campaignMatches ?? [];
+  const savings = transaction?.recommendation?.savingsBreakdown ?? null;
+
+  const statusIcon = transaction?.status === 'COMPLETED' ? 'checkmark-circle' : 
+                     transaction?.status === 'PENDING' ? 'time' :
+                     transaction?.status === 'REJECTED' ? 'close-circle' : 'alert-circle';
+  
+  const statusColor = transaction?.status === 'COMPLETED' ? '#7DFFA2' :
+                      transaction?.status === 'PENDING' ? '#FFB74D' :
+                      '#FF6B6B';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -92,13 +93,13 @@ export default function TransactionDetailScreen() {
 
         {/* SUCCESS HERO */}
         <View style={styles.hero}>
-          <View style={styles.successGlow} />
+          <View style={[styles.successGlow, { backgroundColor: statusColor }]} />
 
           <View style={styles.successCircle}>
             <Ionicons
-              name="checkmark-circle"
+              name={statusIcon as any}
               size={54}
-              color="#7DFFA2"
+              color={statusColor}
             />
           </View>
 
@@ -109,156 +110,183 @@ export default function TransactionDetailScreen() {
           </Text>
 
           <Text style={styles.paymentText}>
-            {transaction ? `Paid at ${transaction.merchant}` : 'No transactions yet'}
+            {transaction ? `Paid at ${transaction.merchantName}` : 'No transactions yet'}
           </Text>
+
+          {transaction && (
+            <View style={[styles.statusBadge, { borderColor: statusColor }]}>
+              <Text style={[styles.statusText, { color: statusColor }]}>
+                {transaction.status}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* BREAKDOWN CARD */}
-        <View style={styles.glassCard}>
-          <View style={styles.cardHeader}>
-            <View style={styles.iconCircle}>
-              <MaterialIcons
-                name="auto-awesome"
-                size={22}
-                color="#BBC3FF"
-              />
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>
-                {transaction
-                  ? `Optimized via ${
-                      transactionCard?.nickname ?? 'best-fit card'
-                    }`
-                  : 'Awaiting first transaction'}
-              </Text>
-
-              <Text style={styles.cardSubtitle}>AI SELECTION</Text>
-            </View>
-          </View>
-
-          <View style={styles.statsRow}>
-            <View>
-              <View style={styles.statLabelRow}>
-                <Ionicons
-                  name="wallet"
-                  size={14}
-                  color="#999"
-                />
-
-                <Text style={styles.statLabel}>SAVINGS</Text>
-              </View>
-
-              <Text style={styles.successValue}>
-                {transaction ? rewardSavings(transaction) : '—'}
-              </Text>
-            </View>
-
-            <View>
-              <View style={styles.statLabelRow}>
-                <Ionicons
-                  name="flash"
-                  size={14}
-                  color="#999"
-                />
-
-                <Text style={styles.statLabel}>MULTIPLIER</Text>
-              </View>
-
-              <Text style={styles.primaryValue}>
-                {transaction ? rewardMultiplier(transaction.reward.label) : '—'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ROUTING FLOW */}
-        <View style={styles.glassCard}>
-          <View style={styles.routingHeader}>
-            <Text style={styles.routingTitle}>
-              Smart Routing Flow
-            </Text>
-
-            <MaterialCommunityIcons
-              name="source-branch"
-              size={20}
-              color="#aaa"
-            />
-          </View>
-
-          <View style={styles.routingContainer}>
-            {/* AI CORE */}
-            <View style={styles.aiCore}>
-              <View style={styles.aiCoreInner}>
-                <Ionicons
-                  name="sparkles"
-                  size={28}
+        {/* AI RECOMMENDATION CARD */}
+        {transaction?.recommendation && (
+          <View style={styles.glassCard}>
+            <View style={styles.cardHeader}>
+              <View style={styles.iconCircle}>
+                <MaterialIcons
+                  name="auto-awesome"
+                  size={22}
                   color="#BBC3FF"
                 />
               </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>
+                  AI recommends: {transaction.recommendation.recommendedBank}
+                  {transaction.recommendation.recommendedNetwork
+                    ? ` · ${transaction.recommendation.recommendedNetwork}`
+                    : ''}
+                </Text>
+
+                <Text style={styles.cardSubtitle}>AI RECOMMENDATION</Text>
+              </View>
             </View>
 
-            {/* LINES */}
-            <View style={styles.linesContainer}>
-              {routingCards.map((item, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.line,
-                    item.active && styles.activeLine,
-                  ]}
-                />
-              ))}
-            </View>
+            <Text style={styles.reasonText}>
+              {transaction.recommendation.reason}
+            </Text>
 
-            {/* CARD LIST */}
-            <View style={styles.cardList}>
-              {routingCards.map((item, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.routeCard,
-                    item.active && styles.activeRouteCard,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.routeCardIcon,
-                      item.active &&
-                        styles.activeRouteCardIcon,
-                    ]}
-                  >
-                    <Ionicons
-                      name="card"
-                      size={18}
-                      color={
-                        item.active ? '#7DFFA2' : '#aaa'
-                      }
-                    />
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.routeCardText,
-                        item.active &&
-                          styles.activeRouteCardText,
-                      ]}
-                    >
-                      {item.name}
-                    </Text>
-
-                    {item.subtitle && (
-                      <Text style={styles.routeCardSub}>
-                        {item.subtitle}
-                      </Text>
-                    )}
-                  </View>
+            <View style={styles.statsRow}>
+              <View>
+                <View style={styles.statLabelRow}>
+                  <Ionicons name="wallet" size={14} color="#999" />
+                  <Text style={styles.statLabel}>BENEFIT</Text>
                 </View>
-              ))}
+
+                <Text style={styles.successValue}>
+                  {savings
+                    ? `${savings.value} ${savings.unit}`
+                    : transaction.recommendation.estimatedBenefit}
+                </Text>
+                {savings?.installments ? (
+                  <Text style={styles.routeCardSub}>
+                    {savings.installments}x installment
+                  </Text>
+                ) : null}
+              </View>
+
+              <View>
+                <View style={styles.statLabelRow}>
+                  <Ionicons name="flash" size={14} color="#999" />
+                  <Text style={styles.statLabel}>CONFIDENCE</Text>
+                </View>
+
+                <Text style={styles.primaryValue}>
+                  {Math.round(transaction.recommendation.confidence * 100)}%
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
+
+        {/* MATCHED CAMPAIGNS */}
+        {campaignMatches.length > 0 && (
+          <View style={styles.glassCard}>
+            <View style={styles.routingHeader}>
+              <Text style={styles.routingTitle}>Matched Campaigns</Text>
+              <MaterialCommunityIcons name="tag-multiple" size={20} color="#aaa" />
+            </View>
+            {campaignMatches.map((m) => (
+              <View key={m.campaignId} style={styles.campaignRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.campaignTitle} numberOfLines={1}>
+                    {m.title}
+                  </Text>
+                  <Text style={styles.campaignMeta}>
+                    {m.bankName} · {m.rewardRate}%
+                  </Text>
+                </View>
+                <Text style={styles.campaignValue}>
+                  +{m.rewardValue} {m.rewardUnit}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ROUTING FLOW */}
+        {routingCards.length > 0 && (
+          <View style={styles.glassCard}>
+            <View style={styles.routingHeader}>
+              <Text style={styles.routingTitle}>Smart Routing Flow</Text>
+
+              <MaterialCommunityIcons
+                name="source-branch"
+                size={20}
+                color="#aaa"
+              />
+            </View>
+
+            <View style={styles.routingContainer}>
+              {/* AI CORE */}
+              <View style={styles.aiCore}>
+                <View style={styles.aiCoreInner}>
+                  <Ionicons name="sparkles" size={28} color="#BBC3FF" />
+                </View>
+              </View>
+
+              {/* LINES */}
+              <View style={styles.linesContainer}>
+                {routingCards.map((item, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.line,
+                      item.active && styles.activeLine,
+                    ]}
+                  />
+                ))}
+              </View>
+
+              {/* CARD LIST */}
+              <View style={styles.cardList}>
+                {routingCards.map((item, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.routeCard,
+                      item.active && styles.activeRouteCard,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.routeCardIcon,
+                        item.active && styles.activeRouteCardIcon,
+                      ]}
+                    >
+                      <Ionicons
+                        name="card"
+                        size={18}
+                        color={item.active ? '#7DFFA2' : '#aaa'}
+                      />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.routeCardText,
+                          item.active && styles.activeRouteCardText,
+                        ]}
+                      >
+                        {item.name}
+                      </Text>
+
+                      {item.subtitle && (
+                        <Text style={styles.routeCardSub}>
+                          {item.subtitle}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* BUTTON */}
         <TouchableOpacity
@@ -278,7 +306,6 @@ export default function TransactionDetailScreen() {
       <TransactionDetailsModal
         visible={detailsOpen && !!transaction}
         transaction={transaction}
-        card={transactionCard}
         onClose={() => setDetailsOpen(false)}
       />
     </SafeAreaView>
@@ -287,27 +314,19 @@ export default function TransactionDetailScreen() {
 
 interface TransactionDetailsModalProps {
   visible: boolean;
-  transaction?: Transaction;
-  card?: Card;
+  transaction?: BackendTransaction;
   onClose: () => void;
 }
 
 /**
- * Bottom-sheet style modal surfacing the full breakdown of a transaction:
- * timestamp, card used, merchant, amount, reward, and the AI's routing
- * rationale. Kept colocated with the screen because no other route reuses it.
+ * Bottom-sheet style modal surfacing the full breakdown of a transaction.
  */
 function TransactionDetailsModal({
   visible,
   transaction,
-  card,
   onClose,
 }: TransactionDetailsModalProps) {
   if (!transaction) return null;
-
-  const cardLabel = card
-    ? `${card.nickname ?? card.bankName ?? 'Card'} •••• ${card.last4}`
-    : '—';
 
   return (
     <Modal
@@ -328,29 +347,35 @@ function TransactionDetailsModal({
           </View>
 
           <DetailRow label="Reference" value={transaction.id.toUpperCase()} mono />
-          <DetailRow label="Date" value={formatDateTime(transaction.occurredAt)} />
-          <DetailRow label="Merchant" value={transaction.merchant} />
-          {transaction.category && (
-            <DetailRow label="Category" value={transaction.category} />
+          <DetailRow label="Date" value={formatDateTime(transaction.createdAt)} />
+          <DetailRow label="Merchant" value={transaction.merchantName} />
+          <DetailRow label="Status" value={transaction.status} />
+          {transaction.recommendation?.merchantCategory && (
+            <DetailRow label="Category" value={transaction.recommendation.merchantCategory} />
           )}
-          <DetailRow label="Card used" value={cardLabel} />
+          {transaction.recommendation?.recommendedBank && (
+            <DetailRow label="Recommended Card" value={transaction.recommendation.recommendedBank} />
+          )}
           <DetailRow
             label="Amount"
             value={formatCurrency(transaction.amount, transaction.currency)}
             strong
           />
-          <DetailRow
-            label={`Reward (${transaction.reward.kind})`}
-            value={`${transaction.reward.label} · ${rewardSavings(transaction)}`}
-          />
+          {transaction.recommendation?.estimatedBenefit && (
+            <DetailRow
+              label="Estimated Benefit"
+              value={transaction.recommendation.estimatedBenefit}
+            />
+          )}
 
-          <View style={styles.reasonBox}>
-            <MaterialIcons name="auto-awesome" size={16} color="#BBC3FF" />
-            <Text style={styles.reasonText}>
-              SmartPay routed this payment to {cardLabel} to maximize{' '}
-              {transaction.reward.label.toLowerCase()} rewards.
-            </Text>
-          </View>
+          {transaction.recommendation?.reason && (
+            <View style={styles.reasonBox}>
+              <MaterialIcons name="auto-awesome" size={16} color="#BBC3FF" />
+              <Text style={styles.modalReasonText}>
+                {transaction.recommendation.reason}
+              </Text>
+            </View>
+          )}
         </Pressable>
       </Pressable>
     </Modal>
@@ -421,7 +446,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 140,
     height: 140,
-    backgroundColor: '#7DFFA2',
     borderRadius: 100,
     opacity: 0.12,
   },
@@ -448,6 +472,20 @@ const styles = StyleSheet.create({
     color: '#aaa',
     fontSize: 16,
     marginTop: 8,
+  },
+
+  statusBadge: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+  },
+
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
 
   glassCard: {
@@ -488,6 +526,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 4,
     letterSpacing: 1,
+  },
+
+  reasonText: {
+    color: '#BBC3FF',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 16,
+    marginBottom: 4,
   },
 
   statsRow: {
@@ -626,6 +672,33 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
+  campaignRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.04)',
+  },
+
+  campaignTitle: {
+    color: '#E0E3E6',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  campaignMeta: {
+    color: '#9AA0B4',
+    fontSize: 11,
+    marginTop: 2,
+  },
+
+  campaignValue: {
+    color: '#7DFFA2',
+    fontSize: 13,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
+
   button: {
     height: 58,
     borderRadius: 999,
@@ -723,7 +796,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(187,195,255,0.18)',
   },
 
-  reasonText: {
+  modalReasonText: {
     flex: 1,
     color: '#BBC3FF',
     fontSize: 13,

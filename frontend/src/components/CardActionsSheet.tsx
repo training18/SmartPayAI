@@ -14,10 +14,10 @@ import {
 
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 
-import type { Card } from '@/src/types';
+import type { SavedCard } from '@/src/types';
 
 interface Props {
-  card: Card | null;
+  card: SavedCard | null;
   onClose: () => void;
   onEdit: (id: string) => void;
   onRename: (id: string, nickname: string) => Promise<void> | void;
@@ -43,7 +43,7 @@ export function CardActionsSheet({ card, onClose, onEdit, onRename, onDelete }: 
   useEffect(() => {
     if (card) {
       setMode('menu');
-      setNickname(card.nickname ?? '');
+      setNickname(card.cardAlias ?? '');
       setBusy(false);
     }
   }, [card]);
@@ -93,9 +93,9 @@ export function CardActionsSheet({ card, onClose, onEdit, onRename, onDelete }: 
                 {card && (
                   <View style={styles.cardSummary}>
                     <Text style={styles.cardTitle} numberOfLines={1}>
-                      {card.nickname ?? card.bankName ?? 'Card'}
+                      {card.cardAlias ?? card.bankName ?? 'Card'}
                     </Text>
-                    <Text style={styles.cardMeta}>•••• {card.last4}</Text>
+                    <Text style={styles.cardMeta}>{card.first4} ••••</Text>
                   </View>
                 )}
 
@@ -180,7 +180,7 @@ export function CardActionsSheet({ card, onClose, onEdit, onRename, onDelete }: 
                       <MaterialIcons name="warning-amber" size={28} color="#FF6B6B" />
                       <Text style={styles.deleteTitle}>Remove this card?</Text>
                       <Text style={styles.deleteDescription}>
-                        {card.nickname ?? card.bankName ?? 'This card'} •••• {card.last4} will
+                        {card.cardAlias ?? card.bankName ?? 'This card'} {card.first4} •••• will
                         be permanently removed from your wallet.
                       </Text>
                     </View>

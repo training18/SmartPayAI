@@ -16,7 +16,7 @@ const client_1 = require("@prisma/client");
 class CreateSavedCardDto {
     bankName;
     cardType;
-    last4;
+    first4;
     cardAlias;
     holderName;
     monthlyLimit;
@@ -36,11 +36,11 @@ __decorate([
     __metadata("design:type", String)
 ], CreateSavedCardDto.prototype, "cardType", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: '4567' }),
+    (0, swagger_1.ApiProperty)({ example: '4111', description: 'First 4 digits (BIN prefix) — used to derive the card network.' }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.Length)(4, 4),
     __metadata("design:type", String)
-], CreateSavedCardDto.prototype, "last4", void 0);
+], CreateSavedCardDto.prototype, "first4", void 0);
 __decorate([
     (0, swagger_1.ApiPropertyOptional)({ example: 'Bonus Gold' }),
     (0, class_validator_1.IsOptional)(),

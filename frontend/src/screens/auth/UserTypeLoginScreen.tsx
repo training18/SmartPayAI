@@ -7,6 +7,10 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 
 import { MaterialIcons } from '@expo/vector-icons';
@@ -22,27 +26,61 @@ const COLORS = {
   textSecondary: '#C5C5D9',
   glass: 'rgba(255,255,255,0.05)',
   glassBorder: 'rgba(255,255,255,0.1)',
+  inputBg: 'rgba(255,255,255,0.06)',
+  inputBorder: 'rgba(255,255,255,0.12)',
+  inputFocusBorder: 'rgba(61,90,254,0.5)',
+  error: '#FF5252',
 };
 
-type AccountType = UserRole | null;
+type AuthMode = 'login' | 'register';
 
 /**
- * Auth role-picker screen.
+ * Auth screen — Login / Register.
  *
- * On confirm, signs the user into the active session with the selected role.
- * The root `_layout.tsx` listens to the auth store and swaps the protected
- * group from `(auth)` to either `(personal)` or `(merchant)` automatically.
+ * On successful auth, the root `_layout.tsx` listens to the auth store
+ * and swaps the protected group from `(auth)` to either `(personal)` or
+ * `(merchant)` automatically based on the user's role.
  */
 export default function UserTypeLoginScreen() {
-  const [selected, setSelected] = useState<AccountType>(null);
-  const { signIn, isSubmitting } = useAuth();
+  const [mode, setMode] = useState<AuthMode>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState<UserRole>('personal');
+  const [showPassword, setShowPassword] = useState(false);
+  const { login, register, isSubmitting, error } = useAuth();
 
-  const handleContinue = async () => {
-    if (!selected) return;
+  const toggleMode = () => {
+    setMode((m) => (m === 'login' ? 'register' : 'login'));
+    // Clear form state on mode change but keep email
+    setPassword('');
+    setFullName('');
+    setRole('personal');
+  };
+
+  const isFormValid =
+    email.trim().length > 0 &&
+    password.length >= 6 &&
+    (mode === 'login' || fullName.trim().length > 0);
+
+  const handleSubmit = async () => {
+    if (!isFormValid || isSubmitting) return;
     try {
-      await signIn({ email: `${selected}@smartpay.ai`, role: selected });
+      if (mode === 'register') {
+        await register({
+          email: email.trim(),
+          password,
+          fullName: fullName.trim(),
+          role,
+        });
+      } else {
+        await login({
+          email: email.trim(),
+          password,
+        });
+      }
     } catch {
-      // surfaced via auth store `error`; intentionally swallowed here
+      // Error is surfaced via auth store `error`
     }
   };
 
@@ -54,210 +92,261 @@ export default function UserTypeLoginScreen() {
       <View style={styles.glowPrimary} />
       <View style={styles.glowSecondary} />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoRow}>
-            <MaterialIcons
-              name="bolt"
-              size={30}
-              color={COLORS.primary}
-            />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.logoRow}>
+              <MaterialIcons name="bolt" size={30} color={COLORS.primary} />
+              <Text style={styles.logoText}>SmartPay AI</Text>
+            </View>
 
-            <Text style={styles.logoText}>
-              SmartPay AI
+            <Text style={styles.title}>
+              {mode === 'login' ? 'Welcome ' : 'Create Your '}
+              <Text style={styles.gradientText}>
+                {mode === 'login' ? 'Back' : 'Account'}
+              </Text>
+            </Text>
+
+            <Text style={styles.subtitle}>
+              {mode === 'login'
+                ? 'Sign in to access your AI-powered payment optimization engine.'
+                : 'Join SmartPay AI and let our intelligence optimize every transaction.'}
             </Text>
           </View>
 
-          <Text style={styles.title}>
-            Choose Your{' '}
-            <Text style={styles.gradientText}>
-              Intelligence
-            </Text>
-          </Text>
+          {/* Form Card */}
+          <View style={styles.formCard}>
+            {/* Account type (register only) */}
+            {mode === 'register' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Account Type</Text>
+                <View style={styles.roleRow}>
+                  <RoleOption
+                    icon="person"
+                    label="Personal"
+                    description="Pay with smart routing"
+                    selected={role === 'personal'}
+                    onPress={() => setRole('personal')}
+                  />
+                  <RoleOption
+                    icon="storefront"
+                    label="Merchant"
+                    description="Accept optimized payments"
+                    selected={role === 'merchant'}
+                    onPress={() => setRole('merchant')}
+                  />
+                </View>
+              </View>
+            )}
 
-          <Text style={styles.subtitle}>
-            Select the account type that best fits your
-            financial ecosystem. Our predictive AI adapts
-            to optimize your capital flow instantly.
-          </Text>
-        </View>
+            {/* Full Name (register only) */}
+            {mode === 'register' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Full Name</Text>
+                <View style={styles.inputWrapper}>
+                  <MaterialIcons
+                    name="person-outline"
+                    size={20}
+                    color={COLORS.textSecondary}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={fullName}
+                    onChangeText={setFullName}
+                    placeholder="Alexander Williams"
+                    placeholderTextColor="rgba(255,255,255,0.25)"
+                    autoCapitalize="words"
+                    autoComplete="name"
+                  />
+                </View>
+              </View>
+            )}
 
-        {/* Cards */}
-        <View style={styles.cardsWrapper}>
-          <AccountCard
-            title="Personal Account"
-            description="Optimize everyday spending with AI-driven cashback routing, predictive budget analysis, and automated savings triggers."
-            icon="person"
-            accent={COLORS.primary}
-            selected={selected === 'personal'}
-            onPress={() => setSelected('personal')}
-            footer="Free Forever"
-            features={[
-              'Predictive Cashback Routing',
-              'Automated Micro-investing',
-              'Virtual AI Assistant',
-            ]}
-          />
+            {/* Email */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email Address</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons
+                  name="mail-outline"
+                  size={20}
+                  color={COLORS.textSecondary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@smartpay.ai"
+                  placeholderTextColor="rgba(255,255,255,0.25)"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  keyboardType="email-address"
+                  textContentType="emailAddress"
+                />
+              </View>
+            </View>
 
-          <AccountCard
-            title="Merchant Account"
-            description="Scale your business with dynamic fee routing, instant settlements, and predictive liquidity insights."
-            icon="storefront"
-            accent={COLORS.secondary}
-            selected={selected === 'merchant'}
-            onPress={() => setSelected('merchant')}
-            footer="Starting at 0.5% + \$0.10"
-            features={[
-              'Dynamic Commission Routing',
-              'Predictive Liquidity Models',
-              'API & Webhook Access',
-            ]}
-          />
-        </View>
+            {/* Password */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons
+                  name="lock-outline"
+                  size={20}
+                  color={COLORS.textSecondary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder={mode === 'register' ? 'Min. 6 characters' : '••••••••'}
+                  placeholderTextColor="rgba(255,255,255,0.25)"
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                  textContentType={mode === 'register' ? 'newPassword' : 'password'}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <MaterialIcons
+                    name={showPassword ? 'visibility-off' : 'visibility'}
+                    size={20}
+                    color={COLORS.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-        {/* Footer */}
-        <View
-          style={[
-            styles.footer,
-            !selected && styles.footerDisabled,
-          ]}
-        >
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={handleContinue}
-            style={[
-              styles.continueButton,
-              (!selected || isSubmitting) && { opacity: 0.5 },
-            ]}
-            disabled={!selected || isSubmitting}
-          >
-            <Text style={styles.continueText}>
-              {isSubmitting ? 'Signing in…' : 'Continue to Setup'}
-            </Text>
+            {/* Error */}
+            {error && (
+              <View style={styles.errorContainer}>
+                <MaterialIcons name="error-outline" size={16} color={COLORS.error} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
 
-            <MaterialIcons
-              name="arrow-forward"
-              size={20}
-              color="#fff"
+            {/* Submit */}
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={handleSubmit}
+              style={[
+                styles.submitButton,
+                (!isFormValid || isSubmitting) && { opacity: 0.5 },
+              ]}
+              disabled={!isFormValid || isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Text style={styles.submitText}>
+                    {mode === 'login' ? 'Sign In' : 'Create Account'}
+                  </Text>
+                  <MaterialIcons name="arrow-forward" size={20} color="#fff" />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Features */}
+          <View style={styles.features}>
+            <FeatureRow
+              icon="security"
+              text="Bank-grade encryption"
+              accent={COLORS.primary}
             />
-          </TouchableOpacity>
+            <FeatureRow
+              icon="auto-awesome"
+              text="AI-powered card optimization"
+              accent={COLORS.secondary}
+            />
+            <FeatureRow
+              icon="speed"
+              text="Real-time recommendations"
+              accent={COLORS.primary}
+            />
+          </View>
 
-          <Text style={styles.loginText}>
-            Already have an account?
-            <Text style={styles.loginLink}>
-              {' '}
-              Log in
+          {/* Toggle */}
+          <View style={styles.footer}>
+            <Text style={styles.toggleText}>
+              {mode === 'login'
+                ? "Don't have an account?"
+                : 'Already have an account?'}
+              <Text style={styles.toggleLink} onPress={toggleMode}>
+                {' '}
+                {mode === 'login' ? 'Sign Up' : 'Sign In'}
+              </Text>
             </Text>
-          </Text>
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-type AccountCardProps = {
-  title: string;
-  description: string;
-  icon: keyof typeof MaterialIcons.glyphMap;
-  accent: string;
-  features: string[];
-  footer: string;
-  selected: boolean;
-  onPress: () => void;
-};
-
-function AccountCard({
-  title,
-  description,
+function FeatureRow({
   icon,
+  text,
   accent,
-  features,
-  footer,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  text: string;
+  accent: string;
+}) {
+  return (
+    <View style={styles.featureRow}>
+      <View style={[styles.featureIconBg, { backgroundColor: `${accent}15` }]}>
+        <MaterialIcons name={icon} size={18} color={accent} />
+      </View>
+      <Text style={styles.featureText}>{text}</Text>
+    </View>
+  );
+}
+
+function RoleOption({
+  icon,
+  label,
+  description,
   selected,
   onPress,
-}: AccountCardProps) {
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  label: string;
+  description: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
   return (
     <TouchableOpacity
-      activeOpacity={0.92}
+      activeOpacity={0.85}
       onPress={onPress}
-      style={[
-        styles.card,
-        selected && {
-          borderColor: accent,
-          backgroundColor: 'rgba(61,90,254,0.10)',
-        },
-      ]}
+      style={[styles.roleOption, selected && styles.roleOptionSelected]}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
     >
-      {/* Icon */}
-      <View style={styles.iconWrapper}>
-        <MaterialIcons
-          name={icon}
-          size={32}
-          color={accent}
-        />
-      </View>
-
-      {/* Title */}
-      <Text style={styles.cardTitle}>
-        {title}
+      <MaterialIcons
+        name={icon}
+        size={22}
+        color={selected ? COLORS.primary : COLORS.textSecondary}
+      />
+      <Text style={[styles.roleLabel, selected && styles.roleLabelSelected]}>
+        {label}
       </Text>
-
-      {/* Desc */}
-      <Text style={styles.cardDescription}>
-        {description}
-      </Text>
-
-      {/* Features */}
-      <View style={styles.featureList}>
-        {features.map((feature) => (
-          <View
-            key={feature}
-            style={styles.featureRow}
-          >
-            <MaterialIcons
-              name="check-circle"
-              size={20}
-              color={COLORS.secondary}
-            />
-
-            <Text style={styles.featureText}>
-              {feature}
-            </Text>
-          </View>
-        ))}
-      </View>
-
-      {/* Footer */}
-      <View style={styles.cardFooter}>
-        <Text
-          style={[
-            styles.footerLabel,
-            { color: accent },
-          ]}
-        >
-          {footer}
-        </Text>
-
-        <View
-          style={[
-            styles.selectionCircle,
-            selected && {
-              backgroundColor: accent,
-              borderColor: accent,
-            },
-          ]}
-        >
-          <MaterialIcons
-            name="check"
-            size={14}
-            color={selected ? '#fff' : 'transparent'}
-          />
-        </View>
-      </View>
+      <Text style={styles.roleDescription}>{description}</Text>
     </TouchableOpacity>
   );
 }
@@ -266,6 +355,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+
+  keyboardView: {
+    flex: 1,
   },
 
   scrollContent: {
@@ -296,7 +389,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginTop: 40,
-    marginBottom: 40,
+    marginBottom: 36,
   },
 
   logoRow: {
@@ -314,10 +407,10 @@ const styles = StyleSheet.create({
 
   title: {
     color: COLORS.textPrimary,
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
   },
 
   gradientText: {
@@ -327,104 +420,118 @@ const styles = StyleSheet.create({
   subtitle: {
     color: COLORS.textSecondary,
     textAlign: 'center',
-    fontSize: 17,
-    lineHeight: 28,
+    fontSize: 16,
+    lineHeight: 25,
     maxWidth: 500,
   },
 
-  cardsWrapper: {
-    gap: 20,
-  },
-
-  card: {
+  // ── Form Card ────────────────────────────────────────────────────────────
+  formCard: {
     backgroundColor: COLORS.glass,
-    borderRadius: 28,
+    borderRadius: 24,
     padding: 24,
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
   },
 
-  iconWrapper: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
+  inputGroup: {
+    marginBottom: 20,
   },
 
-  cardTitle: {
-    color: COLORS.textPrimary,
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
-
-  cardDescription: {
+  inputLabel: {
     color: COLORS.textSecondary,
-    fontSize: 16,
-    lineHeight: 25,
-    marginBottom: 24,
-  },
-
-  featureList: {
-    gap: 14,
-    marginBottom: 28,
-  },
-
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  featureText: {
-    color: COLORS.textSecondary,
-    fontSize: 15,
-    marginLeft: 10,
-  },
-
-  cardFooter: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.05)',
-    paddingTop: 18,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-
-  footerLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
+    marginBottom: 8,
   },
 
-  selectionCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
-    borderColor: '#444656',
-    justifyContent: 'center',
+  roleRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+
+  roleOption: {
+    flex: 1,
+    backgroundColor: COLORS.inputBg,
+    borderWidth: 1,
+    borderColor: COLORS.inputBorder,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: 'flex-start',
+  },
+
+  roleOptionSelected: {
+    borderColor: COLORS.inputFocusBorder,
+    backgroundColor: 'rgba(61,90,254,0.10)',
+  },
+
+  roleLabel: {
+    color: COLORS.textPrimary,
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+
+  roleLabelSelected: {
+    color: COLORS.primary,
+  },
+
+  roleDescription: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  inputWrapper: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: COLORS.inputBg,
+    borderWidth: 1,
+    borderColor: COLORS.inputBorder,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 52,
   },
 
-  footer: {
-    marginTop: 40,
+  inputIcon: {
+    marginRight: 10,
+  },
+
+  input: {
+    flex: 1,
+    color: COLORS.textPrimary,
+    fontSize: 16,
+    height: 52,
+  },
+
+  eyeButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+
+  errorContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255,82,82,0.1)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
   },
 
-  footerDisabled: {
-    opacity: 0.5,
+  errorText: {
+    color: COLORS.error,
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
   },
 
-  continueButton: {
+  submitButton: {
     width: '100%',
-    height: 58,
-    borderRadius: 18,
+    height: 56,
+    borderRadius: 16,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -433,22 +540,53 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 15,
     elevation: 10,
+    marginTop: 4,
   },
 
-  continueText: {
+  submitText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
     marginRight: 8,
   },
 
-  loginText: {
-    marginTop: 24,
+  // ── Features ─────────────────────────────────────────────────────────────
+  features: {
+    marginTop: 32,
+    gap: 14,
+  },
+
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  featureIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+
+  featureText: {
     color: COLORS.textSecondary,
     fontSize: 15,
   },
 
-  loginLink: {
+  // ── Footer ───────────────────────────────────────────────────────────────
+  footer: {
+    marginTop: 32,
+    alignItems: 'center',
+  },
+
+  toggleText: {
+    color: COLORS.textSecondary,
+    fontSize: 15,
+  },
+
+  toggleLink: {
     color: COLORS.primary,
     fontWeight: '700',
   },

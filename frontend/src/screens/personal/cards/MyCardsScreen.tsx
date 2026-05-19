@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   MaterialCommunityIcons,
   MaterialIcons,
 } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 
 import { CardActionsSheet } from '@/src/components';
@@ -21,30 +22,76 @@ import { ROUTES } from '@/src/constants';
 import { useCards } from '@/src/hooks/useCards';
 import { useTransactions } from '@/src/hooks/useTransactions';
 import { useAuth } from '@/src/hooks/useAuth';
-import { formatCurrency, formatExpiry, formatMaskedPan } from '@/src/utils/format';
-import type { Card, CardNetwork } from '@/src/types';
+import { formatCurrency, formatExpiry, formatFullPan, formatMaskedPan } from '@/src/utils/format';
+import type { BackendTransaction, SavedCard } from '@/src/types';
 
-const RECENT_ICONS: Record<string, keyof typeof MaterialIcons.glyphMap> = {
+type CopyField = 'pan' | 'holder' | 'expiry' | 'cvv';
+
+const SMART_SPENDING_DAYS = 6;
+const BAR_MAX_HEIGHT = 90;
+const BAR_MIN_HEIGHT = 8;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Pull the first percentage out of an AI-generated benefit string. */
+function parseSavingsRate(benefit: string | undefined | null): number {
+  if (!benefit) return 0;
+  const match = benefit.match(/([0-9]+(?:\.[0-9]+)?)\s*%/);
+  if (!match) return 0;
+  const pct = Number(match[1]);
+  return Number.isFinite(pct) ? pct / 100 : 0;
+}
+
+/** Build the Smart Spending summary (saved-this-week + last-6-day bars). */
+function buildSmartSpending(transactions: BackendTransaction[]) {
+  const now = Date.now();
+  const weekStart = now - 7 * ONE_DAY_MS;
+
+  const completed = transactions.filter((t) => t.status === 'COMPLETED');
+  const recent = completed.filter((t) => new Date(t.createdAt).getTime() >= weekStart);
+
+  const savedThisWeek = recent.reduce((sum, t) => {
+    const rate = parseSavingsRate(t.recommendation?.estimatedBenefit);
+    return sum + t.amount * rate;
+  }, 0);
+
+  // Daily spend buckets — index 0 = (DAYS-1) days ago, last index = today.
+  const buckets = new Array<number>(SMART_SPENDING_DAYS).fill(0);
+  for (const t of completed) {
+    const ageDays = Math.floor((now - new Date(t.createdAt).getTime()) / ONE_DAY_MS);
+    if (ageDays < 0 || ageDays >= SMART_SPENDING_DAYS) continue;
+    buckets[SMART_SPENDING_DAYS - 1 - ageDays] += t.amount;
+  }
+
+  const peak = Math.max(...buckets);
+  const bars = buckets.map((value) =>
+    peak > 0
+      ? Math.max(BAR_MIN_HEIGHT, (value / peak) * BAR_MAX_HEIGHT)
+      : BAR_MIN_HEIGHT,
+  );
+
+  return {
+    savedThisWeek,
+    currency: recent[0]?.currency ?? completed[0]?.currency ?? 'TRY',
+    bars,
+  };
+}
+
+const CATEGORY_ICON: Record<string, keyof typeof MaterialIcons.glyphMap> = {
   dining: 'restaurant',
   fuel: 'local-gas-station',
   travel: 'flight',
+  grocery: 'shopping-cart',
+  entertainment: 'movie',
 };
 
-const NETWORK_GRADIENT: Record<CardNetwork, readonly [string, string]> = {
-  visa: ['#1A1F71', '#3D5AFE'],
-  mastercard: ['#EB001B', '#F79E1B'],
-  amex: ['#2E77BB', '#0F4C81'],
-  discover: ['#F47216', '#FFB347'],
-  unknown: ['#3D5AFE', '#05E777'],
+/** Gradient pairs by card type for visual differentiation. */
+const CARD_TYPE_GRADIENT: Record<string, readonly [string, string]> = {
+  CREDIT: ['#1A1F71', '#3D5AFE'],
+  DEBIT: ['#2E7D32', '#66BB6A'],
+  PREPAID: ['#E65100', '#FF9800'],
 };
 
-const NETWORK_LABEL: Record<CardNetwork, string> = {
-  visa: 'VISA',
-  mastercard: 'Mastercard',
-  amex: 'Amex',
-  discover: 'Discover',
-  unknown: 'Card',
-};
+const DEFAULT_GRADIENT: readonly [string, string] = ['#3D5AFE', '#05E777'];
 
 /**
  * Personal-user "My Cards" dashboard.
@@ -55,17 +102,29 @@ const NETWORK_LABEL: Record<CardNetwork, string> = {
  */
 export default function MyCardsScreen() {
   const router = useRouter();
-  const { cards, remove, update } = useCards();
+  const { cards, virtualCard, remove, update } = useCards();
   const { transactions } = useTransactions();
   const { signOut } = useAuth();
 
   const [activeCardId, setActiveCardId] = React.useState<string | null>(null);
   const [actionCardId, setActionCardId] = React.useState<string | null>(null);
-  const activeCard = cards.find((c) => c.id === activeCardId) ?? cards[0];
+  const [copiedField, setCopiedField] = React.useState<CopyField | null>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeCard: SavedCard | undefined = cards.find((c) => c.id === activeCardId) ?? cards[0];
   const actionCard = cards.find((c) => c.id === actionCardId) ?? null;
 
+  const smartSpending = useMemo(() => buildSmartSpending(transactions), [transactions]);
+
+  const handleCopy = async (field: CopyField, value: string | undefined | null) => {
+    if (!value) return;
+    await Clipboard.setStringAsync(value);
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    setCopiedField(field);
+    copyTimer.current = setTimeout(() => setCopiedField(null), 1500);
+  };
+
   const handleRename = async (id: string, nickname: string) => {
-    await update(id, { nickname });
+    await update(id, { cardAlias: nickname });
   };
 
   const handleDelete = async (id: string) => {
@@ -88,7 +147,7 @@ export default function MyCardsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* CARD */}
+        {/* VIRTUAL CARD — auto-provisioned demo card the user pays with */}
         <LinearGradient
           colors={['#3D5AFE', '#05E777']}
           start={{ x: 0, y: 0 }}
@@ -101,33 +160,67 @@ export default function MyCardsScreen() {
               size={34}
               color="#fff"
             />
-
-            <View>
-              <Text style={styles.cardLabel}>AI OPTIMIZER</Text>
-              <Text style={styles.cardTitle}>{activeCard?.nickname ?? 'Your Card'}</Text>
-            </View>
           </View>
 
-          <View>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => handleCopy('pan', virtualCard?.cardNumber)}
+            disabled={!virtualCard}
+          >
             <Text style={styles.cardNumber}>
-              {formatMaskedPan(activeCard?.last4 ?? '0000')}
+              {virtualCard
+                ? formatFullPan(virtualCard.cardNumber)
+                : formatMaskedPan('0000')}
             </Text>
-          </View>
+            <Text style={styles.copyHint}>
+              {copiedField === 'pan' ? '✓ Copied' : 'Tap to copy'}
+            </Text>
+          </TouchableOpacity>
 
           <View style={styles.cardBottom}>
-            <View>
-              <Text style={styles.smallText}>Cardholder</Text>
-              <Text style={styles.cardInfo}>{activeCard?.holderName ?? '—'}</Text>
-            </View>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => handleCopy('holder', virtualCard?.cardHolder)}
+              disabled={!virtualCard}
+            >
+              <Text style={styles.smallText}>
+                {copiedField === 'holder' ? '✓ Copied' : 'Cardholder'}
+              </Text>
+              <Text style={styles.cardInfo}>{virtualCard?.cardHolder ?? '—'}</Text>
+            </TouchableOpacity>
 
-            <View>
-              <Text style={styles.smallText}>Expires</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() =>
+                handleCopy(
+                  'expiry',
+                  virtualCard
+                    ? formatExpiry(virtualCard.expiryMonth, virtualCard.expiryYear)
+                    : undefined,
+                )
+              }
+              disabled={!virtualCard}
+            >
+              <Text style={styles.smallText}>
+                {copiedField === 'expiry' ? '✓ Copied' : 'Expires'}
+              </Text>
               <Text style={styles.cardInfo}>
-                {activeCard
-                  ? formatExpiry(activeCard.expiryMonth, activeCard.expiryYear)
+                {virtualCard
+                  ? formatExpiry(virtualCard.expiryMonth, virtualCard.expiryYear)
                   : '—'}
               </Text>
-            </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => handleCopy('cvv', virtualCard?.cvv)}
+              disabled={!virtualCard}
+            >
+              <Text style={styles.smallText}>
+                {copiedField === 'cvv' ? '✓ Copied' : 'CVV'}
+              </Text>
+              <Text style={styles.cardInfo}>{virtualCard?.cvv ?? '—'}</Text>
+            </TouchableOpacity>
           </View>
         </LinearGradient>
 
@@ -204,15 +297,6 @@ export default function MyCardsScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Smart Spending</Text>
-
-            <View style={styles.scoreBadge}>
-              <Ionicons
-                name="checkmark-circle"
-                size={14}
-                color="#BBC3FF"
-              />
-              <Text style={styles.scoreText}>Score: 98</Text>
-            </View>
           </View>
 
           <Text style={styles.description}>
@@ -220,20 +304,22 @@ export default function MyCardsScreen() {
           </Text>
 
           <View style={styles.savedContainer}>
-            <Text style={styles.savedAmount}>+$42.50</Text>
+            <Text style={styles.savedAmount}>
+              +{formatCurrency(smartSpending.savedThisWeek, smartSpending.currency)}
+            </Text>
             <Text style={styles.savedText}>Saved</Text>
           </View>
 
           {/* MINI CHART */}
           <View style={styles.chart}>
-            {[30, 50, 40, 70, 60, 90].map((h, i) => (
+            {smartSpending.bars.map((h, i) => (
               <View
                 key={i}
                 style={[
                   styles.bar,
                   {
                     height: h,
-                    opacity: i === 5 ? 1 : 0.5,
+                    opacity: i === smartSpending.bars.length - 1 ? 1 : 0.5,
                   },
                 ]}
               />
@@ -261,16 +347,16 @@ export default function MyCardsScreen() {
               <View style={styles.transactionLeft}>
                 <View style={styles.transactionIcon}>
                   <MaterialIcons
-                    name={RECENT_ICONS[tx.category ?? ''] ?? 'shopping-bag'}
+                    name={CATEGORY_ICON[tx.recommendation?.merchantCategory ?? ''] ?? 'shopping-bag'}
                     size={24}
                     color="#fff"
                   />
                 </View>
 
                 <View>
-                  <Text style={styles.transactionName}>{tx.merchant}</Text>
+                  <Text style={styles.transactionName}>{tx.merchantName}</Text>
                   <Text style={styles.transactionSub}>
-                    Routed to •••• {cards.find((c) => c.id === tx.cardId)?.last4 ?? '----'}
+                    {tx.status} · {tx.recommendation?.recommendedBank ?? 'N/A'}
                   </Text>
                 </View>
               </View>
@@ -280,9 +366,11 @@ export default function MyCardsScreen() {
                   -{formatCurrency(tx.amount, tx.currency)}
                 </Text>
 
-                <View style={styles.rewardBadge}>
-                  <Text style={styles.rewardText}>{tx.reward.label}</Text>
-                </View>
+                {tx.recommendation && (
+                  <View style={styles.rewardBadge}>
+                    <Text style={styles.rewardText}>{tx.recommendation.estimatedBenefit}</Text>
+                  </View>
+                )}
               </View>
             </TouchableOpacity>
           ))}
@@ -307,11 +395,12 @@ function MiniCard({
   onPress,
   onLongPress,
 }: {
-  card: Card;
+  card: SavedCard;
   active: boolean;
   onPress: () => void;
   onLongPress: () => void;
 }) {
+  const gradient = CARD_TYPE_GRADIENT[card.cardType] ?? DEFAULT_GRADIENT;
   return (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -320,14 +409,14 @@ function MiniCard({
       delayLongPress={350}
     >
       <LinearGradient
-        colors={NETWORK_GRADIENT[card.network]}
+        colors={gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.miniCard, active && styles.miniCardActive]}
       >
         <View style={styles.miniCardTop}>
           <Text style={styles.miniCardBank} numberOfLines={1}>
-            {card.nickname ?? card.bankName ?? 'Card'}
+            {card.cardAlias ?? card.bankName ?? 'Card'}
           </Text>
           {active && (
             <View style={styles.miniActiveBadge}>
@@ -336,14 +425,14 @@ function MiniCard({
           )}
         </View>
 
-        <Text style={styles.miniCardLast4}>•••• {card.last4}</Text>
+        <Text style={styles.miniCardLast4}>{card.first4} ••••</Text>
 
         <View style={styles.miniCardBottom}>
           <Text style={styles.miniCardLabel}>
-            {formatExpiry(card.expiryMonth, card.expiryYear)}
+            {card.cardType}
           </Text>
           <Text style={styles.miniCardNetwork}>
-            {NETWORK_LABEL[card.network]}
+            {card.bankName}
           </Text>
         </View>
       </LinearGradient>
@@ -414,6 +503,13 @@ const styles = StyleSheet.create({
     fontSize: 28,
     letterSpacing: 4,
     fontWeight: '600',
+  },
+
+  copyHint: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 10,
+    marginTop: 4,
+    letterSpacing: 0.5,
   },
 
   cardBottom: {
@@ -631,21 +727,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 22,
     fontWeight: '700',
-  },
-
-  scoreBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#272a2d',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-
-  scoreText: {
-    color: '#aaa',
-    marginLeft: 4,
-    fontSize: 12,
   },
 
   description: {

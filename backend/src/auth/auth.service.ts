@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma';
 import { RegisterDto, LoginDto } from './dto';
 import { TokenPair } from '../common/types';
@@ -42,17 +43,22 @@ export class AuthService {
     // Hash password
     const passwordHash = await bcrypt.hash(dto.password, AuthService.SALT_ROUNDS);
 
-    // Create user
+    // Create user (role defaults to PERSONAL when omitted)
+    const role = dto.role ?? UserRole.PERSONAL;
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         passwordHash,
         fullName: dto.fullName,
+        role,
       },
     });
 
-    // Auto-create demo virtual card
-    await this.virtualCards.createForUser(user.id, user.fullName);
+    // Auto-create demo virtual card only for personal accounts;
+    // merchants are payment recipients and don't need one.
+    if (role === UserRole.PERSONAL) {
+      await this.virtualCards.createForUser(user.id, user.fullName);
+    }
 
     // Generate tokens
     const tokens = await this.generateTokens(user.id, user.email, user.role);

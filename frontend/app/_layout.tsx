@@ -41,7 +41,7 @@ const navTheme = {
 };
 
 export default function RootLayout() {
-  const hydrate = useAuthStore((s) => s.hydrate);
+  const hydrate = useAuthStore((s: { hydrate: () => Promise<void> }) => s.hydrate);
   const { isHydrating, isAuthenticated, role } = useAuth();
 
   useEffect(() => {

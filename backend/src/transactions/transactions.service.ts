@@ -78,16 +78,23 @@ export class TransactionsService {
       },
     });
 
-    // 5. Create recommendation record
+    // 5. Create recommendation record — persist the structured routing trace
     const rec = await this.prisma.recommendation.create({
       data: {
         transactionId: transaction.id,
         recommendedCardId: recommendation.recommendedCardId,
         merchantCategory: merchantAnalysis.merchantCategory,
         recommendedBank: recommendation.recommendedBank,
+        recommendedNetwork: recommendation.recommendedNetwork,
         reason: recommendation.reason,
         estimatedBenefit: recommendation.estimatedBenefit,
         confidence: recommendation.confidence,
+        savingsBreakdown: (recommendation.routingPlan?.savingsBreakdown ??
+          null) as unknown as Prisma.InputJsonValue,
+        rejectedCards: (recommendation.routingPlan?.rejectedCards ??
+          null) as unknown as Prisma.InputJsonValue,
+        campaignMatches: (recommendation.routingPlan?.campaignMatches ??
+          null) as unknown as Prisma.InputJsonValue,
         aiRawResponse: recommendation as unknown as Prisma.InputJsonValue,
       },
     });
@@ -109,14 +116,7 @@ export class TransactionsService {
         category: merchantAnalysis.merchantCategory,
         spendingType: merchantAnalysis.spendingType,
       },
-      recommendation: {
-        id: rec.id,
-        recommendedBank: rec.recommendedBank,
-        recommendedCardId: rec.recommendedCardId,
-        reason: rec.reason,
-        estimatedBenefit: rec.estimatedBenefit,
-        confidence: Number(rec.confidence),
-      },
+      recommendation: this.serializeRecommendation(rec),
     };
   }
 
@@ -154,11 +154,7 @@ export class TransactionsService {
         updatedAt: updated.updatedAt,
       },
       recommendation: updated.recommendation
-        ? {
-            recommendedBank: updated.recommendation.recommendedBank,
-            reason: updated.recommendation.reason,
-            estimatedBenefit: updated.recommendation.estimatedBenefit,
-          }
+        ? this.serializeRecommendation(updated.recommendation)
         : null,
       message: 'Payment completed successfully!',
     };
@@ -208,13 +204,7 @@ export class TransactionsService {
       description: t.description,
       createdAt: t.createdAt,
       recommendation: t.recommendation
-        ? {
-            recommendedBank: t.recommendation.recommendedBank,
-            merchantCategory: t.recommendation.merchantCategory,
-            reason: t.recommendation.reason,
-            estimatedBenefit: t.recommendation.estimatedBenefit,
-            confidence: Number(t.recommendation.confidence),
-          }
+        ? this.serializeRecommendation(t.recommendation)
         : null,
     }));
   }
@@ -229,21 +219,32 @@ export class TransactionsService {
     return {
       ...transaction,
       amount: Number(transaction.amount),
-      recommendation: rec
-        ? {
-            id: rec.id,
-            recommendedBank: rec.recommendedBank,
-            recommendedCardId: rec.recommendedCardId,
-            merchantCategory: rec.merchantCategory,
-            reason: rec.reason,
-            estimatedBenefit: rec.estimatedBenefit,
-            confidence: Number(rec.confidence),
-          }
-        : null,
+      recommendation: rec ? this.serializeRecommendation(rec) : null,
     };
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────
+
+  /**
+   * Shape the persisted Recommendation row for the mobile client. Casts JSON
+   * columns to their structured types — the database is the single source of
+   * truth, so we trust the shape that was written on `initiate`.
+   */
+  private serializeRecommendation(rec: Prisma.RecommendationGetPayload<Record<string, never>>) {
+    return {
+      id: rec.id,
+      recommendedBank: rec.recommendedBank,
+      recommendedCardId: rec.recommendedCardId,
+      recommendedNetwork: rec.recommendedNetwork,
+      merchantCategory: rec.merchantCategory,
+      reason: rec.reason,
+      estimatedBenefit: rec.estimatedBenefit,
+      confidence: Number(rec.confidence),
+      savingsBreakdown: rec.savingsBreakdown ?? null,
+      rejectedCards: rec.rejectedCards ?? null,
+      campaignMatches: rec.campaignMatches ?? null,
+    };
+  }
 
   private async getOwnedTransaction(userId: string, transactionId: string) {
     const transaction = await this.prisma.transaction.findUnique({

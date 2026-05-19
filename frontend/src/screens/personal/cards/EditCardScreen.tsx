@@ -31,16 +31,17 @@ const COLORS = {
 
 interface FormState {
   holderName: string;
-  expiry: string;
   bankName: string;
-  nickname: string;
+  cardAlias: string;
+  /** Optional new PAN — only persisted when the user types digits. */
+  pan: string;
 }
 
 /**
  * Edit card form — lets users update the editable fields of an existing card.
  *
- * Card number (last4) and network are not editable since only last4 is stored.
- * On submit, patches the card in the wallet store and navigates back.
+ * The card number field is optional: leaving it blank keeps the current first4,
+ * entering a new PAN replaces it. Only the first 4 digits (BIN) are persisted.
  */
 export default function EditCardScreen() {
   const router = useRouter();
@@ -50,11 +51,9 @@ export default function EditCardScreen() {
 
   const [form, setForm] = useState<FormState>(() => ({
     holderName: card?.holderName ?? '',
-    expiry: card
-      ? `${String(card.expiryMonth).padStart(2, '0')}/${String(card.expiryYear).padStart(2, '0')}`
-      : '',
     bankName: card?.bankName ?? '',
-    nickname: card?.nickname ?? '',
+    cardAlias: card?.cardAlias ?? '',
+    pan: '',
   }));
   const [submitted, setSubmitted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -69,15 +68,16 @@ export default function EditCardScreen() {
     setSubmitted(true);
     if (hasErrors || isSaving || !card) return;
 
-    const [mm, yy] = form.expiry.split('/');
+    const panDigits = form.pan.replace(/[^0-9]/g, '');
+    const nextFirst4 = panDigits.length >= 4 ? panDigits.slice(0, 4) : undefined;
+
     setIsSaving(true);
     try {
       await updateCard(card.id, {
-        holderName: form.holderName.trim().toUpperCase(),
-        expiryMonth: Number(mm),
-        expiryYear: Number(yy),
+        holderName: form.holderName.trim().toUpperCase() || undefined,
         bankName: form.bankName.trim() || undefined,
-        nickname: form.nickname.trim() || undefined,
+        cardAlias: form.cardAlias.trim() || undefined,
+        ...(nextFirst4 && nextFirst4 !== card.first4 ? { first4: nextFirst4 } : {}),
       });
       router.back();
     } finally {
@@ -139,17 +139,17 @@ export default function EditCardScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Non-editable card identity badge */}
+          {/* Current card identity */}
           <View style={styles.cardBadge}>
             <View style={styles.cardBadgeIcon}>
               <Icon name="credit-card" size={20} color={COLORS.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardBadgeTitle}>
-                •••• {card.last4}
+                {card.first4} ••••
               </Text>
               <Text style={styles.cardBadgeSub}>
-                {card.network.charAt(0).toUpperCase() + card.network.slice(1)} · Card number cannot be changed
+                {card.cardType} · Leave card number blank to keep current
               </Text>
             </View>
           </View>
@@ -163,16 +163,23 @@ export default function EditCardScreen() {
             error={showError('holderName') ? errors.holderName : undefined}
           />
 
+          <Field
+            label="Card Number (optional)"
+            value={form.pan}
+            onChangeText={(v) => set('pan', formatPan(v))}
+            placeholder={`${card.first4} •••• •••• ••••`}
+            keyboardType="number-pad"
+            maxLength={23}
+            error={showError('pan') ? errors.pan : undefined}
+          />
+
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Field
-                label="Expiry (MM/YY)"
-                value={form.expiry}
-                onChangeText={(v) => set('expiry', formatExpiry(v))}
-                placeholder="11/29"
-                keyboardType="number-pad"
-                maxLength={5}
-                error={showError('expiry') ? errors.expiry : undefined}
+                label="Bank Name"
+                value={form.bankName}
+                onChangeText={(v) => set('bankName', v)}
+                placeholder="Garanti BBVA"
               />
             </View>
 
@@ -180,20 +187,13 @@ export default function EditCardScreen() {
 
             <View style={{ flex: 1 }}>
               <Field
-                label="Bank (optional)"
-                value={form.bankName}
-                onChangeText={(v) => set('bankName', v)}
-                placeholder="Chase"
+                label="Alias (optional)"
+                value={form.cardAlias}
+                onChangeText={(v) => set('cardAlias', v)}
+                placeholder="Travel Card"
               />
             </View>
           </View>
-
-          <Field
-            label="Nickname (optional)"
-            value={form.nickname}
-            onChangeText={(v) => set('nickname', v)}
-            placeholder="Travel Card"
-          />
         </ScrollView>
 
         <View style={styles.footer}>
@@ -258,10 +258,9 @@ function Field({
   );
 }
 
-function formatExpiry(value: string): string {
-  const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
-  if (digits.length < 3) return digits;
-  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+function formatPan(value: string): string {
+  const digits = value.replace(/[^0-9]/g, '').slice(0, 19);
+  return digits.replace(/(.{4})/g, '$1 ').trim();
 }
 
 function validate(form: FormState): Partial<Record<keyof FormState, string>> {
@@ -269,11 +268,9 @@ function validate(form: FormState): Partial<Record<keyof FormState, string>> {
 
   if (!form.holderName.trim()) errors.holderName = 'Cardholder name is required';
 
-  const [mm, yy] = form.expiry.split('/');
-  const month = Number(mm);
-  const year = Number(yy);
-  if (!mm || !yy || isNaN(month) || isNaN(year) || month < 1 || month > 12 || yy.length !== 2) {
-    errors.expiry = 'Use MM/YY format';
+  const panDigits = form.pan.replace(/[^0-9]/g, '');
+  if (panDigits.length > 0 && (panDigits.length < 13 || panDigits.length > 19)) {
+    errors.pan = 'Enter a valid card number or leave blank';
   }
 
   return errors;

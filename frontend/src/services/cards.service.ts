@@ -1,15 +1,27 @@
 /**
- * Cards service — encapsulates the data access for Personal user's wallet.
+ * Cards service — encapsulates data access for saved cards.
  *
- * Currently returns in-memory seed data; replace with REST / GraphQL calls
- * without touching the store or hooks.
+ * Endpoints:
+ *   GET    /saved-cards      — list user's saved cards
+ *   POST   /saved-cards      — add a new saved card
+ *   PATCH  /saved-cards/:id  — update a saved card
+ *   DELETE /saved-cards/:id  — remove a saved card
  */
 
-import type { Card, CardNetwork } from '@/src/types';
+import { apiClient } from './api-client';
+import type {
+  SavedCard,
+  CreateSavedCardPayload,
+  UpdateSavedCardPayload,
+  Card,
+  CardNetwork,
+} from '@/src/types';
+
+// ── Manual entry draft (kept for the add-card form) ─────────────────────────
 
 export interface ManualCardDraft {
   holderName: string;
-  /** Raw 13–19 digit PAN as typed by the user; only last4 is persisted. */
+  /** Raw 13–19 digit PAN as typed by the user; only first4 (BIN) is persisted. */
   pan: string;
   /** Two-digit month (1–12) or zero-padded string accepted by the form. */
   expiryMonth: number;
@@ -29,59 +41,56 @@ function detectNetwork(pan: string): CardNetwork {
   return 'unknown';
 }
 
-const seedCards: Card[] = [
-  {
-    id: 'card-infinity',
-    holderName: 'ALEXANDER W.',
-    last4: '9824',
-    network: 'visa',
-    expiryMonth: 12,
-    expiryYear: 28,
-    bankName: 'Chase',
-    nickname: 'Infinity Card',
-    addedAt: new Date().toISOString(),
-  },
-  {
-    id: 'card-sapphire',
-    holderName: 'ALEXANDER W.',
-    last4: '3099',
-    network: 'mastercard',
-    expiryMonth: 8,
-    expiryYear: 27,
-    bankName: 'Chase',
-    nickname: 'Sapphire',
-    addedAt: new Date().toISOString(),
-  },
-];
-
 export const cardsService = {
-  async list(): Promise<Card[]> {
-    await new Promise((r) => setTimeout(r, 150));
-    return [...seedCards];
+  /** List all saved cards for the current user. */
+  async list(): Promise<SavedCard[]> {
+    const { data } = await apiClient.get<SavedCard[]>('/saved-cards');
+    return data;
   },
 
-  async save(card: Card): Promise<Card> {
-    await new Promise((r) => setTimeout(r, 150));
-    return card;
+  /** Add a new saved card. */
+  async save(payload: CreateSavedCardPayload): Promise<SavedCard> {
+    const { data } = await apiClient.post<SavedCard>('/saved-cards', payload);
+    return data;
   },
 
+  /** Remove a saved card by ID. */
   async remove(id: string): Promise<void> {
-    await new Promise((r) => setTimeout(r, 120));
-    void id;
+    await apiClient.delete(`/saved-cards/${id}`);
   },
 
-  async update(id: string, patch: Partial<Card>): Promise<Partial<Card> & { id: string }> {
-    await new Promise((r) => setTimeout(r, 120));
-    return { id, ...patch };
+  /** Update a saved card. */
+  async update(id: string, patch: UpdateSavedCardPayload): Promise<SavedCard> {
+    const { data } = await apiClient.patch<SavedCard>(`/saved-cards/${id}`, patch);
+    return data;
   },
 
-  /** Builds a persistable Card from a manual entry draft. */
-  fromManual(draft: ManualCardDraft): Card {
+  /**
+   * Builds a backend-compatible `CreateSavedCardPayload` from a manual entry draft.
+   * Used by the add-card form to prepare the API request.
+   */
+  fromManual(draft: ManualCardDraft): CreateSavedCardPayload {
+    const digits = draft.pan.replace(/[^0-9]/g, '');
+    return {
+      bankName: draft.bankName?.trim() || 'Unknown Bank',
+      cardType: 'CREDIT',
+      first4: digits.slice(0, 4),
+      cardAlias: draft.nickname?.trim() || undefined,
+      holderName: draft.holderName.trim().toUpperCase(),
+      rewardType: 'NONE',
+    };
+  },
+
+  /**
+   * Legacy method — converts a ManualCardDraft to the old Card shape.
+   * Used by existing UI components that haven't migrated to SavedCard yet.
+   */
+  fromManualLegacy(draft: ManualCardDraft): Card {
     const digits = draft.pan.replace(/[^0-9]/g, '');
     return {
       id: `card-${Date.now()}`,
       holderName: draft.holderName.trim().toUpperCase(),
-      last4: digits.slice(-4),
+      first4: digits.slice(0, 4),
       network: detectNetwork(digits),
       expiryMonth: draft.expiryMonth,
       expiryYear: draft.expiryYear,

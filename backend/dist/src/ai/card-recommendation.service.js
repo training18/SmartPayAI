@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const ai_service_1 = require("./ai.service");
 const campaigns_service_1 = require("../campaigns/campaigns.service");
 const saved_cards_service_1 = require("../saved-cards/saved-cards.service");
+const card_network_util_1 = require("../saved-cards/utils/card-network.util");
 const prompts_1 = require("./prompts");
 let CardRecommendationService = CardRecommendationService_1 = class CardRecommendationService {
     ai;
@@ -39,14 +40,19 @@ let CardRecommendationService = CardRecommendationService_1 = class CardRecommen
         }
         const bankNames = [...new Set(userCards.map((c) => c.bankName))];
         const activeCampaigns = await this.campaigns.findByCategory(merchantCategory, bankNames);
-        const cardContext = userCards.map((c) => ({
-            id: c.id,
-            bankName: c.bankName,
-            cardType: c.cardType,
-            last4: c.last4,
-            cardAlias: c.cardAlias ?? undefined,
-            rewardType: c.rewardType,
-        }));
+        const cardContext = userCards.map((c) => {
+            const net = (0, card_network_util_1.detectCardNetwork)(c.first4);
+            return {
+                id: c.id,
+                bankName: c.bankName,
+                cardType: c.cardType,
+                first4: c.first4,
+                network: net.network,
+                networkLabel: net.label,
+                cardAlias: c.cardAlias ?? undefined,
+                rewardType: c.rewardType,
+            };
+        });
         const campaignContext = activeCampaigns.map((c) => ({
             title: c.title,
             bankName: c.bankName,

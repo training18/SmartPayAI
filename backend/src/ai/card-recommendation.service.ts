@@ -2,14 +2,24 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
 import { SavedCardsService } from '../saved-cards/saved-cards.service';
+import { CardScoringService } from './card-scoring.service';
+import { RoutingSimulationService, RoutingPlan } from './routing-simulation.service';
 import { CARD_RECOMMENDATION_PROMPT } from './prompts';
+import type { ScoredCandidatePromptInput } from './prompts/card-recommendation.prompt';
 
 /**
- * AI Card Recommendation Engine.
+ * AI Card Recommendation orchestrator.
  *
- * Given a merchant context + amount, evaluates the user's cards against
- * active campaigns and produces an AI-powered recommendation with
- * human-readable reasoning.
+ *   user cards + active campaigns
+ *        │
+ *        ▼  CardScoringService          (deterministic — campaign matching, math)
+ *   scored candidates
+ *        │
+ *        ▼  AiService                   (LLM reasoning — picks winner, writes reason)
+ *   raw AI decision
+ *        │
+ *        ▼  RoutingSimulationService    (simulated routing — selected/rejected, savings)
+ *   structured Recommendation payload
  */
 @Injectable()
 export class CardRecommendationService {
@@ -19,98 +29,132 @@ export class CardRecommendationService {
     private readonly ai: AiService,
     private readonly campaigns: CampaignsService,
     private readonly savedCards: SavedCardsService,
+    private readonly scoring: CardScoringService,
+    private readonly routing: RoutingSimulationService,
   ) {}
 
-  /**
-   * Generate an AI-powered card recommendation.
-   *
-   * @param userId - The user whose cards to evaluate
-   * @param merchantName - Merchant being paid
-   * @param merchantCategory - AI-determined category
-   * @param amount - Transaction amount
-   * @param currency - Currency code (default: TRY)
-   */
   async recommend(
     userId: string,
     merchantName: string,
     merchantCategory: string,
     amount: number,
     currency = 'TRY',
-  ) {
-    // 1. Get user's saved cards
+  ): Promise<AiRecommendationResult> {
+    // 1. Load context
     const userCards = await this.savedCards.findAllByUser(userId);
     if (userCards.length === 0) {
-      return {
-        recommendedCardId: null,
-        recommendedBank: 'N/A',
-        reason: 'No saved cards found. Please add your cards to receive AI-powered recommendations.',
-        estimatedBenefit: 'N/A',
-        confidence: 0,
-      };
+      return this.emptyRecommendation();
     }
 
-    // 2. Get matching bank names from user's cards
     const bankNames = [...new Set(userCards.map((c) => c.bankName))];
-
-    // 3. Fetch active campaigns for the merchant category
     const activeCampaigns = await this.campaigns.findByCategory(merchantCategory, bankNames);
 
-    // 4. Build AI context
-    const cardContext = userCards.map((c) => ({
-      id: c.id,
-      bankName: c.bankName,
-      cardType: c.cardType,
-      last4: c.last4,
-      cardAlias: c.cardAlias ?? undefined,
-      rewardType: c.rewardType,
+    // 2. Deterministic scoring — campaign matching + reward computation
+    const scored = this.scoring.scoreCards(userCards, activeCampaigns, amount);
+
+    // 3. AI: pick winner + author reasoning over the structured candidates
+    const candidates: ScoredCandidatePromptInput[] = scored.map((s) => ({
+      cardId: s.cardId,
+      bankName: s.bankName,
+      cardType: s.cardType,
+      first4: s.first4,
+      network: s.network,
+      networkLabel: s.networkLabel,
+      cardAlias: s.cardAlias,
+      rewardType: s.rewardType,
+      expectedReward: s.bestMatch
+        ? {
+            value: s.bestMatch.rewardValue,
+            unit: s.bestMatch.rewardUnit,
+            type: s.bestMatch.rewardType,
+            campaignTitle: s.bestMatch.title,
+            installments: s.bestMatch.installmentCount,
+          }
+        : null,
+      matchedCampaigns: s.matches.map((m) => ({
+        title: m.title,
+        rewardRate: m.rewardRate,
+        rewardValue: m.rewardValue,
+        rewardUnit: m.rewardUnit,
+      })),
     }));
 
-    const campaignContext = activeCampaigns.map((c) => ({
-      title: c.title,
-      bankName: c.bankName,
-      category: c.category,
-      rewardType: c.rewardType,
-      rewardRate: Number(c.rewardRate),
-      maxReward: c.maxReward ? Number(c.maxReward) : undefined,
-      installmentCount: c.installmentCount ?? undefined,
-      description: c.description,
-    }));
+    this.logger.log(
+      `Recommending for ${merchantName} (${merchantCategory}) — ${candidates.length} candidates, ` +
+        `${activeCampaigns.length} active campaigns`,
+    );
 
-    // 5. Query AI for recommendation
-    this.logger.log(`Generating card recommendation for ${merchantName} (${merchantCategory}), amount: ${amount} ${currency}`);
-
-    const aiResult = await this.ai.generateJson<{
-      recommendedCardId: string;
-      recommendedBank: string;
-      reason: string;
-      estimatedBenefit: string;
-      confidence: number;
-      rewardBreakdown?: {
-        type: string;
-        value: number;
-        unit: string;
-      };
-    }>(
+    const aiResult = await this.ai.generateJson<AiRawDecision>(
       CARD_RECOMMENDATION_PROMPT.system,
       CARD_RECOMMENDATION_PROMPT.buildUserPrompt({
         merchantName,
         merchantCategory,
         amount,
         currency,
-        userCards: cardContext,
-        activeCampaigns: campaignContext,
+        candidates,
       }),
     );
 
-    // 6. Validate recommended card exists in user's cards
-    const recommendedCard = userCards.find((c) => c.id === aiResult.recommendedCardId);
-    if (!recommendedCard && userCards.length > 0) {
-      // AI returned an invalid card ID — fallback to first card with matching bank
-      const fallback = userCards.find((c) => c.bankName === aiResult.recommendedBank) ?? userCards[0];
-      aiResult.recommendedCardId = fallback.id;
-      aiResult.recommendedBank = fallback.bankName;
-    }
+    // 4. Routing simulation — build the structured trace we persist
+    const plan = this.routing.buildPlan({
+      scored,
+      aiSelectedCardId: aiResult.recommendedCardId,
+      aiRewardBreakdown: aiResult.rewardBreakdown ?? null,
+    });
 
-    return aiResult;
+    // 5. Merge AI-authored per-card rejection lines with the routing plan
+    const rejectedWithReasons = plan.rejectedCards.map((r) => {
+      const aiReason = aiResult.rejectedCards?.find((x) => x.cardId === r.cardId)?.reason;
+      return aiReason ? { ...r, reason: aiReason } : r;
+    });
+
+    return {
+      recommendedCardId: plan.selectedCardId,
+      recommendedBank: plan.selectedBank,
+      recommendedNetwork: plan.selectedNetwork,
+      reason: aiResult.reason,
+      estimatedBenefit: aiResult.estimatedBenefit,
+      confidence: aiResult.confidence,
+      rewardBreakdown: aiResult.rewardBreakdown ?? null,
+      routingPlan: { ...plan, rejectedCards: rejectedWithReasons },
+      aiRaw: aiResult,
+    };
   }
+
+  private emptyRecommendation(): AiRecommendationResult {
+    return {
+      recommendedCardId: null,
+      recommendedBank: 'N/A',
+      recommendedNetwork: 'Unknown',
+      reason: 'No saved cards found. Please add your cards to receive AI-powered recommendations.',
+      estimatedBenefit: 'N/A',
+      confidence: 0,
+      rewardBreakdown: null,
+      routingPlan: null,
+      aiRaw: null,
+    };
+  }
+}
+
+interface AiRawDecision {
+  recommendedCardId: string | null;
+  recommendedBank: string;
+  recommendedNetwork?: string;
+  reason: string;
+  estimatedBenefit: string;
+  confidence: number;
+  rewardBreakdown?: { type: string; value: number; unit: string } | null;
+  rejectedCards?: Array<{ cardId: string; reason: string }>;
+}
+
+export interface AiRecommendationResult {
+  recommendedCardId: string | null;
+  recommendedBank: string;
+  recommendedNetwork: string;
+  reason: string;
+  estimatedBenefit: string;
+  confidence: number;
+  rewardBreakdown: { type: string; value: number; unit: string } | null;
+  routingPlan: RoutingPlan | null;
+  aiRaw: AiRawDecision | null;
 }

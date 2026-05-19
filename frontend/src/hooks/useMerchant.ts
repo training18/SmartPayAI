@@ -10,8 +10,9 @@ export function useMerchant(autoLoad = true) {
   const load = useMerchantStore((s) => s.load);
 
   useEffect(() => {
-    if (autoLoad && payments.length === 0 && !isLoading) load();
-  }, [autoLoad, payments.length, isLoading, load]);
+    if (autoLoad) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return { payments, summary, isLoading, error, load };
 }
