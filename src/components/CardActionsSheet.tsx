@@ -10,7 +10,6 @@ import {
   Platform,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -20,19 +19,23 @@ import type { Card } from '@/src/types';
 interface Props {
   card: Card | null;
   onClose: () => void;
+  onEdit: (id: string) => void;
   onRename: (id: string, nickname: string) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
 }
 
-type Mode = 'menu' | 'rename';
+type Mode = 'menu' | 'rename' | 'confirmDelete';
 
 /**
  * Bottom-sheet action menu surfaced on long-press of a card tile.
  *
- * Hosts the Edit Nickname / Delete flows so MyCardsScreen doesn't need to
+ * Hosts the Edit / Rename / Delete flows so MyCardsScreen doesn't need to
  * own the prompt + confirmation UX itself.
+ *
+ * Delete uses an in-sheet confirmation view rather than Alert.alert, which
+ * doesn't work reliably when presented from inside a React Native Modal.
  */
-export function CardActionsSheet({ card, onClose, onRename, onDelete }: Props) {
+export function CardActionsSheet({ card, onClose, onEdit, onRename, onDelete }: Props) {
   const [mode, setMode] = useState<Mode>('menu');
   const [nickname, setNickname] = useState('');
   const [busy, setBusy] = useState(false);
@@ -60,28 +63,15 @@ export function CardActionsSheet({ card, onClose, onRename, onDelete }: Props) {
     }
   };
 
-  const handleDelete = () => {
-    if (!card) return;
-    Alert.alert(
-      'Remove card?',
-      `${card.nickname ?? card.bankName ?? 'This card'} •••• ${card.last4} will be removed from your wallet.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            setBusy(true);
-            try {
-              await onDelete(card.id);
-              onClose();
-            } finally {
-              setBusy(false);
-            }
-          },
-        },
-      ],
-    );
+  const handleConfirmDelete = async () => {
+    if (!card || busy) return;
+    setBusy(true);
+    try {
+      await onDelete(card.id);
+      onClose();
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -112,6 +102,16 @@ export function CardActionsSheet({ card, onClose, onRename, onDelete }: Props) {
                 {mode === 'menu' && (
                   <View>
                     <SheetButton
+                      icon="edit-note"
+                      label="Edit Card"
+                      onPress={() => {
+                        if (card) {
+                          onClose();
+                          onEdit(card.id);
+                        }
+                      }}
+                    />
+                    <SheetButton
                       icon="edit"
                       label="Edit Nickname"
                       onPress={() => setMode('rename')}
@@ -120,7 +120,7 @@ export function CardActionsSheet({ card, onClose, onRename, onDelete }: Props) {
                       icon="delete-outline"
                       label="Remove Card"
                       destructive
-                      onPress={handleDelete}
+                      onPress={() => setMode('confirmDelete')}
                     />
                     <SheetButton
                       icon="close"
@@ -168,6 +168,45 @@ export function CardActionsSheet({ card, onClose, onRename, onDelete }: Props) {
                           <ActivityIndicator color="#fff" />
                         ) : (
                           <Text style={styles.primaryText}>Save</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {mode === 'confirmDelete' && card && (
+                  <View>
+                    <View style={styles.deleteWarning}>
+                      <MaterialIcons name="warning-amber" size={28} color="#FF6B6B" />
+                      <Text style={styles.deleteTitle}>Remove this card?</Text>
+                      <Text style={styles.deleteDescription}>
+                        {card.nickname ?? card.bankName ?? 'This card'} •••• {card.last4} will
+                        be permanently removed from your wallet.
+                      </Text>
+                    </View>
+
+                    <View style={styles.row}>
+                      <TouchableOpacity
+                        style={[styles.actionBtn, styles.secondary]}
+                        onPress={() => setMode('menu')}
+                        disabled={busy}
+                      >
+                        <Text style={styles.secondaryText}>Cancel</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.actionBtn,
+                          styles.danger,
+                          busy && { opacity: 0.5 },
+                        ]}
+                        onPress={handleConfirmDelete}
+                        disabled={busy}
+                      >
+                        {busy ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <Text style={styles.primaryText}>Remove</Text>
                         )}
                       </TouchableOpacity>
                     </View>
@@ -280,4 +319,24 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
   },
   secondaryText: { color: '#C5C5D9', fontWeight: '600', fontSize: 14 },
+  danger: { backgroundColor: '#D32F2F' },
+
+  deleteWarning: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 20,
+  },
+  deleteTitle: {
+    color: '#FF6B6B',
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 12,
+  },
+  deleteDescription: {
+    color: '#9AA0B4',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 20,
+  },
 });

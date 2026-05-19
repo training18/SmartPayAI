@@ -1,8 +1,8 @@
 /**
  * Personal tab navigator.
  *
- * Three tabs back the personal experience: Cards (wallet root), Scan (OCR
- * entry-point), and Transactions (recent activity + AI routing visualization).
+ * Two tabs back the personal experience: Cards (wallet root) and
+ * Transactions (recent activity + AI routing visualization).
  *
  * Visual styling is centralized in `src/navigation/screen-options` so the
  * tab bar matches the glass-on-dark aesthetic of every screen.
@@ -26,12 +26,17 @@ export default function PersonalLayout() {
         }}
       />
       <Tabs.Screen
-        name="scan"
+        name="add-card"
         options={{
-          title: 'Scan',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="scan" size={size} color={color} />
-          ),
+          href: null,
+          title: 'Add Card',
+        }}
+      />
+      <Tabs.Screen
+        name="edit-card"
+        options={{
+          href: null,
+          title: 'Edit Card',
         }}
       />
       <Tabs.Screen

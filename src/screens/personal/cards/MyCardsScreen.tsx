@@ -158,7 +158,7 @@ export default function MyCardsScreen() {
             <TouchableOpacity
               style={styles.addCardTile}
               activeOpacity={0.85}
-              onPress={() => router.push(ROUTES.personal.scan)}
+              onPress={() => router.push(ROUTES.personal.addCard)}
             >
               <View style={styles.addCardIcon}>
                 <Ionicons name="add" size={28} color="#BBC3FF" />
@@ -193,10 +193,10 @@ export default function MyCardsScreen() {
 
           <TouchableOpacity
             style={styles.scanButton}
-            onPress={() => router.push(ROUTES.personal.scan)}
+            onPress={() => router.push(ROUTES.personal.addCard)}
           >
-            <Ionicons name="scan" size={24} color="#BBC3FF" />
-            <Text style={styles.scanText}>Scan</Text>
+            <Ionicons name="add-circle-outline" size={24} color="#BBC3FF" />
+            <Text style={styles.scanText}>Add</Text>
           </TouchableOpacity>
         </View>
 
@@ -292,6 +292,7 @@ export default function MyCardsScreen() {
       <CardActionsSheet
         card={actionCard}
         onClose={() => setActionCardId(null)}
+        onEdit={(id) => router.push(ROUTES.personal.editCard(id))}
         onRename={handleRename}
         onDelete={handleDelete}
       />

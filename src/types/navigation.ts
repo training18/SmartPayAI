@@ -14,7 +14,6 @@ export type RootGroup = '(auth)' | '(personal)' | '(merchant)';
 /** Param list for the Personal bottom-tab navigator. */
 export interface PersonalTabsParamList extends Record<string, object | undefined> {
   index: undefined;
-  scan: undefined;
   transactions: undefined;
 }
 

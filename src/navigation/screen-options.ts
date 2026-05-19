@@ -18,7 +18,7 @@ export const baseStackOptions: NativeStackNavigationOptions = {
   animation: 'fade',
 };
 
-/** Stack options for screens presented over the wallet (e.g. OCR scan). */
+/** Stack options for screens presented modally over the wallet. */
 export const modalStackOptions: NativeStackNavigationOptions = {
   ...baseStackOptions,
   presentation: 'modal',

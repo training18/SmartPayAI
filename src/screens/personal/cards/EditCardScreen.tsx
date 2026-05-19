@@ -13,10 +13,9 @@ import {
 } from 'react-native';
 
 import { MaterialIcons as Icon } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ROUTES } from '@/src/constants';
-import { cardsService } from '@/src/services/cards.service';
 import { useCardsStore } from '@/src/store/cards.store';
 
 const COLORS = {
@@ -32,31 +31,31 @@ const COLORS = {
 
 interface FormState {
   holderName: string;
-  pan: string;
   expiry: string;
   bankName: string;
   nickname: string;
 }
 
-const INITIAL: FormState = {
-  holderName: '',
-  pan: '',
-  expiry: '',
-  bankName: '',
-  nickname: '',
-};
-
 /**
- * Manual card-entry form — the primary way for users to add cards.
+ * Edit card form — lets users update the editable fields of an existing card.
  *
- * On submit, normalizes the input via `cardsService.fromManual`, persists
- * through the wallet store and navigates back to the My Cards tab.
+ * Card number (last4) and network are not editable since only last4 is stored.
+ * On submit, patches the card in the wallet store and navigates back.
  */
-export default function ManualCardEntryScreen() {
+export default function EditCardScreen() {
   const router = useRouter();
-  const addCard = useCardsStore((s) => s.add);
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const card = useCardsStore((s) => s.cards.find((c) => c.id === id));
+  const updateCard = useCardsStore((s) => s.update);
 
-  const [form, setForm] = useState<FormState>(INITIAL);
+  const [form, setForm] = useState<FormState>(() => ({
+    holderName: card?.holderName ?? '',
+    expiry: card
+      ? `${String(card.expiryMonth).padStart(2, '0')}/${String(card.expiryYear).padStart(2, '0')}`
+      : '',
+    bankName: card?.bankName ?? '',
+    nickname: card?.nickname ?? '',
+  }));
   const [submitted, setSubmitted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -68,27 +67,50 @@ export default function ManualCardEntryScreen() {
 
   const handleSubmit = async () => {
     setSubmitted(true);
-    if (hasErrors || isSaving) return;
+    if (hasErrors || isSaving || !card) return;
 
     const [mm, yy] = form.expiry.split('/');
     setIsSaving(true);
     try {
-      const card = cardsService.fromManual({
-        holderName: form.holderName,
-        pan: form.pan,
+      await updateCard(card.id, {
+        holderName: form.holderName.trim().toUpperCase(),
         expiryMonth: Number(mm),
         expiryYear: Number(yy),
-        bankName: form.bankName,
-        nickname: form.nickname,
+        bankName: form.bankName.trim() || undefined,
+        nickname: form.nickname.trim() || undefined,
       });
-      await addCard(card);
-      router.replace(ROUTES.personal.cards);
+      router.back();
     } finally {
       setIsSaving(false);
     }
   };
 
   const showError = (key: keyof FormState) => submitted && errors[key];
+
+  if (!card) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.circleButton}
+            onPress={() => router.back()}
+            hitSlop={8}
+          >
+            <Icon name="arrow-back" size={20} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Edit Card</Text>
+          <View style={{ width: 42 }} />
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+          <Icon name="error-outline" size={48} color={COLORS.muted} />
+          <Text style={{ color: COLORS.textSecondary, marginTop: 16, textAlign: 'center' }}>
+            Card not found. It may have been removed.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -103,7 +125,7 @@ export default function ManualCardEntryScreen() {
           <Icon name="arrow-back" size={20} color="#fff" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Add Card Manually</Text>
+        <Text style={styles.headerTitle}>Edit Card</Text>
 
         <View style={{ width: 42 }} />
       </View>
@@ -117,10 +139,20 @@ export default function ManualCardEntryScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.description}>
-            Enter the details printed on your card. We only store the last 4 digits
-            of the card number.
-          </Text>
+          {/* Non-editable card identity badge */}
+          <View style={styles.cardBadge}>
+            <View style={styles.cardBadgeIcon}>
+              <Icon name="credit-card" size={20} color={COLORS.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardBadgeTitle}>
+                •••• {card.last4}
+              </Text>
+              <Text style={styles.cardBadgeSub}>
+                {card.network.charAt(0).toUpperCase() + card.network.slice(1)} · Card number cannot be changed
+              </Text>
+            </View>
+          </View>
 
           <Field
             label="Cardholder Name"
@@ -129,16 +161,6 @@ export default function ManualCardEntryScreen() {
             placeholder="ALEXANDER W."
             autoCapitalize="characters"
             error={showError('holderName') ? errors.holderName : undefined}
-          />
-
-          <Field
-            label="Card Number"
-            value={form.pan}
-            onChangeText={(v) => set('pan', formatPan(v))}
-            placeholder="1234 5678 9012 3456"
-            keyboardType="number-pad"
-            maxLength={23}
-            error={showError('pan') ? errors.pan : undefined}
           />
 
           <View style={styles.row}>
@@ -182,9 +204,9 @@ export default function ManualCardEntryScreen() {
             activeOpacity={0.9}
           >
             <Text style={styles.submitText}>
-              {isSaving ? 'Saving…' : 'Add Card'}
+              {isSaving ? 'Saving…' : 'Save Changes'}
             </Text>
-            <Icon name="arrow-forward" size={18} color="#fff" />
+            <Icon name="check" size={18} color="#fff" />
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
@@ -236,11 +258,6 @@ function Field({
   );
 }
 
-function formatPan(value: string): string {
-  const digits = value.replace(/[^0-9]/g, '').slice(0, 19);
-  return digits.replace(/(.{4})/g, '$1 ').trim();
-}
-
 function formatExpiry(value: string): string {
   const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
   if (digits.length < 3) return digits;
@@ -251,11 +268,6 @@ function validate(form: FormState): Partial<Record<keyof FormState, string>> {
   const errors: Partial<Record<keyof FormState, string>> = {};
 
   if (!form.holderName.trim()) errors.holderName = 'Cardholder name is required';
-
-  const panDigits = form.pan.replace(/[^0-9]/g, '');
-  if (panDigits.length < 13 || panDigits.length > 19) {
-    errors.pan = 'Enter a valid card number';
-  }
 
   const [mm, yy] = form.expiry.split('/');
   const month = Number(mm);
@@ -287,13 +299,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
-  scroll: { paddingHorizontal: 24, paddingBottom: 24 },
-  description: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
+  cardBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(40,72,238,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(40,72,238,0.2)',
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 24,
+    gap: 14,
   },
+  cardBadgeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(40,72,238,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardBadgeTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  cardBadgeSub: {
+    color: COLORS.muted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  scroll: { paddingHorizontal: 24, paddingBottom: 24 },
   row: { flexDirection: 'row' },
   fieldWrapper: { marginBottom: 16 },
   fieldLabel: {

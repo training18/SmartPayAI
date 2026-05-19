@@ -11,8 +11,8 @@ export const ROUTES = {
   },
   personal: {
     cards: '/(personal)',
-    scan: '/(personal)/scan',
-    scanManual: '/(personal)/scan/manual',
+    addCard: '/(personal)/add-card',
+    editCard: (id: string) => `/(personal)/edit-card?id=${id}` as const,
     transactions: '/(personal)/transactions',
     transactionDetail: (id: string) => `/(personal)/transactions/${id}` as const,
   },

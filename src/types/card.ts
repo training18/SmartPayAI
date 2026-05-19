@@ -1,8 +1,8 @@
 /**
  * Card-related domain types.
  *
- * `Card` represents a card saved by a Personal user — either scanned via
- * the OCR flow or imported through another channel.
+ * `Card` represents a card saved by a Personal user — entered manually
+ * through the card-entry form.
  */
 
 export type CardNetwork = 'visa' | 'mastercard' | 'amex' | 'discover' | 'unknown';
@@ -19,13 +19,4 @@ export interface Card {
   nickname?: string;
   /** ISO timestamp the card was added to the wallet. */
   addedAt: string;
-}
-
-export interface OcrCardResult {
-  holderName: string;
-  last4: string;
-  network: CardNetwork;
-  expiryMonth: number;
-  expiryYear: number;
-  bankName?: string;
 }
