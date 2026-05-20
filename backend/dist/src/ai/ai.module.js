@@ -11,18 +11,27 @@ const common_1 = require("@nestjs/common");
 const ai_service_1 = require("./ai.service");
 const merchant_intelligence_service_1 = require("./merchant-intelligence.service");
 const card_recommendation_service_1 = require("./card-recommendation.service");
+const card_scoring_service_1 = require("./card-scoring.service");
+const routing_simulation_service_1 = require("./routing-simulation.service");
 const merchants_module_1 = require("../merchants/merchants.module");
 const campaigns_module_1 = require("../campaigns/campaigns.module");
 const saved_cards_module_1 = require("../saved-cards/saved-cards.module");
+const savings_module_1 = require("../savings/savings.module");
 const ai_controller_1 = require("./ai.controller");
 let AiModule = class AiModule {
 };
 exports.AiModule = AiModule;
 exports.AiModule = AiModule = __decorate([
     (0, common_1.Module)({
-        imports: [merchants_module_1.MerchantsModule, campaigns_module_1.CampaignsModule, saved_cards_module_1.SavedCardsModule],
+        imports: [merchants_module_1.MerchantsModule, campaigns_module_1.CampaignsModule, saved_cards_module_1.SavedCardsModule, savings_module_1.SavingsModule],
         controllers: [ai_controller_1.AiController],
-        providers: [ai_service_1.AiService, merchant_intelligence_service_1.MerchantIntelligenceService, card_recommendation_service_1.CardRecommendationService],
+        providers: [
+            ai_service_1.AiService,
+            merchant_intelligence_service_1.MerchantIntelligenceService,
+            card_recommendation_service_1.CardRecommendationService,
+            card_scoring_service_1.CardScoringService,
+            routing_simulation_service_1.RoutingSimulationService,
+        ],
         exports: [ai_service_1.AiService, merchant_intelligence_service_1.MerchantIntelligenceService, card_recommendation_service_1.CardRecommendationService],
     })
 ], AiModule);

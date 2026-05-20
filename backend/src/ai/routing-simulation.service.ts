@@ -13,12 +13,10 @@ import type { ScoredCard, CampaignMatch } from './card-scoring.service';
 export interface SavingsBreakdown {
   /** Primary reward value (e.g. 120). */
   value: number;
-  /** Display unit (e.g. "TL", "points"). */
+  /** Display unit (e.g. "TL", "puan"). */
   unit: string;
-  /** Reward kind (CASHBACK / POINTS / MILES / INSTALLMENT / DISCOUNT). */
+  /** Reward kind (CASHBACK / POINTS / MILES / DISCOUNT). */
   type: string;
-  /** Installments offered when type=INSTALLMENT. */
-  installments?: number;
 }
 
 export interface RejectedCardEntry {
@@ -145,7 +143,6 @@ export class RoutingSimulationService {
         type: aiBreakdown.type,
         value: aiBreakdown.value,
         unit: aiBreakdown.unit,
-        installments: bestMatch?.installmentCount ?? undefined,
       };
     }
     if (bestMatch) {
@@ -153,7 +150,6 @@ export class RoutingSimulationService {
         type: bestMatch.rewardType,
         value: bestMatch.rewardValue,
         unit: bestMatch.rewardUnit,
-        installments: bestMatch.installmentCount ?? undefined,
       };
     }
     return { type: 'NONE', value: 0, unit: '' };

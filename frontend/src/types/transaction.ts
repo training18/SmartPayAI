@@ -15,7 +15,6 @@ export interface SavingsBreakdown {
   type: string;
   value: number;
   unit: string;
-  installments?: number;
 }
 
 /** Per-card rejection reason emitted by the AI orchestrator. */
@@ -51,6 +50,12 @@ export interface Recommendation {
   savingsBreakdown?: SavingsBreakdown | null;
   rejectedCards?: RejectedCardEntry[] | null;
   campaignMatches?: CampaignMatchEntry[] | null;
+  cashbackEarned?: number;
+  discountAmount?: number;
+  pointsValue?: number;
+  installmentValue?: number;
+  aiRoutingGain?: number;
+  totalSavedAmount?: number;
 }
 
 /** Merchant analysis result from AI. */
@@ -107,11 +112,7 @@ export interface TransactionApproveResponse {
     status: BackendTransactionStatus;
     updatedAt: string;
   };
-  recommendation: {
-    recommendedBank: string;
-    reason: string;
-    estimatedBenefit: string;
-  } | null;
+  recommendation: Recommendation | null;
   message: string;
 }
 

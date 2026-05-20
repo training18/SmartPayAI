@@ -60,9 +60,21 @@ let TransactionsService = TransactionsService_1 = class TransactionsService {
                 recommendedCardId: recommendation.recommendedCardId,
                 merchantCategory: merchantAnalysis.merchantCategory,
                 recommendedBank: recommendation.recommendedBank,
+                recommendedNetwork: recommendation.recommendedNetwork,
                 reason: recommendation.reason,
                 estimatedBenefit: recommendation.estimatedBenefit,
                 confidence: recommendation.confidence,
+                cashbackEarned: recommendation.savings.cashbackEarned,
+                discountAmount: recommendation.savings.discountAmount,
+                pointsValue: recommendation.savings.pointsValue,
+                installmentValue: 0,
+                totalSavedAmount: recommendation.savings.totalSavedAmount,
+                savingsBreakdown: (recommendation.routingPlan?.savingsBreakdown ??
+                    null),
+                rejectedCards: (recommendation.routingPlan?.rejectedCards ??
+                    null),
+                campaignMatches: (recommendation.routingPlan?.campaignMatches ??
+                    null),
                 aiRawResponse: recommendation,
             },
         });
@@ -80,14 +92,7 @@ let TransactionsService = TransactionsService_1 = class TransactionsService {
                 category: merchantAnalysis.merchantCategory,
                 spendingType: merchantAnalysis.spendingType,
             },
-            recommendation: {
-                id: rec.id,
-                recommendedBank: rec.recommendedBank,
-                recommendedCardId: rec.recommendedCardId,
-                reason: rec.reason,
-                estimatedBenefit: rec.estimatedBenefit,
-                confidence: Number(rec.confidence),
-            },
+            recommendation: this.serializeRecommendation(rec),
         };
     }
     async approve(userId, transactionId) {
@@ -112,11 +117,7 @@ let TransactionsService = TransactionsService_1 = class TransactionsService {
                 updatedAt: updated.updatedAt,
             },
             recommendation: updated.recommendation
-                ? {
-                    recommendedBank: updated.recommendation.recommendedBank,
-                    reason: updated.recommendation.reason,
-                    estimatedBenefit: updated.recommendation.estimatedBenefit,
-                }
+                ? this.serializeRecommendation(updated.recommendation)
                 : null,
             message: 'Payment completed successfully!',
         };
@@ -155,13 +156,7 @@ let TransactionsService = TransactionsService_1 = class TransactionsService {
             description: t.description,
             createdAt: t.createdAt,
             recommendation: t.recommendation
-                ? {
-                    recommendedBank: t.recommendation.recommendedBank,
-                    merchantCategory: t.recommendation.merchantCategory,
-                    reason: t.recommendation.reason,
-                    estimatedBenefit: t.recommendation.estimatedBenefit,
-                    confidence: Number(t.recommendation.confidence),
-                }
+                ? this.serializeRecommendation(t.recommendation)
                 : null,
         }));
     }
@@ -173,17 +168,28 @@ let TransactionsService = TransactionsService_1 = class TransactionsService {
         return {
             ...transaction,
             amount: Number(transaction.amount),
-            recommendation: rec
-                ? {
-                    id: rec.id,
-                    recommendedBank: rec.recommendedBank,
-                    recommendedCardId: rec.recommendedCardId,
-                    merchantCategory: rec.merchantCategory,
-                    reason: rec.reason,
-                    estimatedBenefit: rec.estimatedBenefit,
-                    confidence: Number(rec.confidence),
-                }
-                : null,
+            recommendation: rec ? this.serializeRecommendation(rec) : null,
+        };
+    }
+    serializeRecommendation(rec) {
+        return {
+            id: rec.id,
+            recommendedBank: rec.recommendedBank,
+            recommendedCardId: rec.recommendedCardId,
+            recommendedNetwork: rec.recommendedNetwork,
+            merchantCategory: rec.merchantCategory,
+            reason: rec.reason,
+            estimatedBenefit: rec.estimatedBenefit,
+            confidence: Number(rec.confidence),
+            cashbackEarned: Number(rec.cashbackEarned),
+            discountAmount: Number(rec.discountAmount),
+            pointsValue: Number(rec.pointsValue),
+            installmentValue: Number(rec.installmentValue),
+            aiRoutingGain: Number(rec.aiRoutingGain),
+            totalSavedAmount: Number(rec.totalSavedAmount),
+            savingsBreakdown: rec.savingsBreakdown ?? null,
+            rejectedCards: rec.rejectedCards ?? null,
+            campaignMatches: rec.campaignMatches ?? null,
         };
     }
     async getOwnedTransaction(userId, transactionId) {

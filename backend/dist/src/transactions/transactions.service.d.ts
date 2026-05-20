@@ -3,6 +3,7 @@ import { MerchantIntelligenceService } from '../ai/merchant-intelligence.service
 import { CardRecommendationService } from '../ai/card-recommendation.service';
 import { VirtualCardsService } from '../virtual-cards/virtual-cards.service';
 import { InitiateTransactionDto } from './dto';
+import { Prisma } from '@prisma/client';
 export declare class TransactionsService {
     private readonly prisma;
     private readonly merchantIntel;
@@ -27,9 +28,20 @@ export declare class TransactionsService {
             id: string;
             recommendedBank: string;
             recommendedCardId: string | null;
+            recommendedNetwork: string | null;
+            merchantCategory: string;
             reason: string;
             estimatedBenefit: string;
             confidence: number;
+            cashbackEarned: number;
+            discountAmount: number;
+            pointsValue: number;
+            installmentValue: number;
+            aiRoutingGain: number;
+            totalSavedAmount: number;
+            savingsBreakdown: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
+            rejectedCards: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
+            campaignMatches: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
         };
     }>;
     approve(userId: string, transactionId: string): Promise<{
@@ -42,9 +54,23 @@ export declare class TransactionsService {
             updatedAt: Date;
         };
         recommendation: {
+            id: string;
             recommendedBank: string;
+            recommendedCardId: string | null;
+            recommendedNetwork: string | null;
+            merchantCategory: string;
             reason: string;
             estimatedBenefit: string;
+            confidence: number;
+            cashbackEarned: number;
+            discountAmount: number;
+            pointsValue: number;
+            installmentValue: number;
+            aiRoutingGain: number;
+            totalSavedAmount: number;
+            savingsBreakdown: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
+            rejectedCards: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
+            campaignMatches: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
         } | null;
         message: string;
     }>;
@@ -65,11 +91,23 @@ export declare class TransactionsService {
         description: string | null;
         createdAt: Date;
         recommendation: {
+            id: string;
             recommendedBank: string;
+            recommendedCardId: string | null;
+            recommendedNetwork: string | null;
             merchantCategory: string;
             reason: string;
             estimatedBenefit: string;
             confidence: number;
+            cashbackEarned: number;
+            discountAmount: number;
+            pointsValue: number;
+            installmentValue: number;
+            aiRoutingGain: number;
+            totalSavedAmount: number;
+            savingsBreakdown: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
+            rejectedCards: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
+            campaignMatches: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
         } | null;
     }[]>;
     findById(userId: string, transactionId: string): Promise<{
@@ -78,10 +116,20 @@ export declare class TransactionsService {
             id: string;
             recommendedBank: string;
             recommendedCardId: string | null;
+            recommendedNetwork: string | null;
             merchantCategory: string;
             reason: string;
             estimatedBenefit: string;
             confidence: number;
+            cashbackEarned: number;
+            discountAmount: number;
+            pointsValue: number;
+            installmentValue: number;
+            aiRoutingGain: number;
+            totalSavedAmount: number;
+            savingsBreakdown: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
+            rejectedCards: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
+            campaignMatches: string | number | boolean | Prisma.JsonObject | Prisma.JsonArray | null;
         } | null;
         id: string;
         description: string | null;
@@ -90,9 +138,10 @@ export declare class TransactionsService {
         status: import("@prisma/client").$Enums.TransactionStatus;
         userId: string;
         mcc: string | null;
+        merchantId: string | null;
         merchantName: string;
         currency: string;
-        merchantId: string | null;
     }>;
+    private serializeRecommendation;
     private getOwnedTransaction;
 }

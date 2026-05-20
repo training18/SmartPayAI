@@ -4,6 +4,7 @@ import { CampaignsService } from '../campaigns/campaigns.service';
 import { SavedCardsService } from '../saved-cards/saved-cards.service';
 import { CardScoringService } from './card-scoring.service';
 import { RoutingSimulationService, RoutingPlan } from './routing-simulation.service';
+import { SavingsService, SavingsBreakdownResult } from '../savings/savings.service';
 import { CARD_RECOMMENDATION_PROMPT } from './prompts';
 import type { ScoredCandidatePromptInput } from './prompts/card-recommendation.prompt';
 
@@ -31,7 +32,8 @@ export class CardRecommendationService {
     private readonly savedCards: SavedCardsService,
     private readonly scoring: CardScoringService,
     private readonly routing: RoutingSimulationService,
-  ) {}
+    private readonly savings: SavingsService,
+  ) { }
 
   async recommend(
     userId: string,
@@ -64,12 +66,12 @@ export class CardRecommendationService {
       rewardType: s.rewardType,
       expectedReward: s.bestMatch
         ? {
-            value: s.bestMatch.rewardValue,
-            unit: s.bestMatch.rewardUnit,
-            type: s.bestMatch.rewardType,
-            campaignTitle: s.bestMatch.title,
-            installments: s.bestMatch.installmentCount,
-          }
+          value: s.bestMatch.rewardValue,
+          valueTL: s.bestMatch.rewardValueTL,
+          unit: s.bestMatch.rewardUnit,
+          type: s.bestMatch.rewardType,
+          campaignTitle: s.bestMatch.title,
+        }
         : null,
       matchedCampaigns: s.matches.map((m) => ({
         title: m.title,
@@ -79,21 +81,49 @@ export class CardRecommendationService {
       })),
     }));
 
-    this.logger.log(
-      `Recommending for ${merchantName} (${merchantCategory}) — ${candidates.length} candidates, ` +
-        `${activeCampaigns.length} active campaigns`,
-    );
+    const hasAnyActiveCampaign = scored.some((s) => s.bestMatch !== null);
+    let aiResult: AiRawDecision;
 
-    const aiResult = await this.ai.generateJson<AiRawDecision>(
-      CARD_RECOMMENDATION_PROMPT.system,
-      CARD_RECOMMENDATION_PROMPT.buildUserPrompt({
-        merchantName,
-        merchantCategory,
-        amount,
-        currency,
-        candidates,
-      }),
-    );
+    if (candidates.length === 1 || !hasAnyActiveCampaign) {
+      this.logger.log(
+        `[Recommend] Trivial recommendation: Bypassing AI call (candidates: ${candidates.length}, campaigns: ${activeCampaigns.length})`
+      );
+
+      const winner = scored[0];
+      const rejectedCards = scored
+        .slice(1)
+        .map((c) => ({
+          cardId: c.cardId,
+          reason: 'No active campaign found for this category.',
+        }));
+
+      aiResult = {
+        recommendedCardId: winner.cardId,
+        recommendedBank: winner.bankName,
+        recommendedNetwork: winner.networkLabel,
+        reason: 'No active campaign in this spending category, thus the most suitable card was selected.',
+        estimatedBenefit: '0.00 TL',
+        confidence: 1.0,
+        rewardBreakdown: null,
+        rejectedCards,
+      };
+    } else {
+      this.logger.log(
+        `Recommending for ${merchantName} (${merchantCategory}) — ${candidates.length} candidates, ` +
+        `${activeCampaigns.length} active campaigns`,
+      );
+
+      aiResult = await this.ai.generateJson<AiRawDecision>(
+        CARD_RECOMMENDATION_PROMPT.system,
+        CARD_RECOMMENDATION_PROMPT.buildUserPrompt({
+          merchantName,
+          merchantCategory,
+          amount,
+          currency,
+          candidates,
+        }),
+      );
+    }
 
     // 4. Routing simulation — build the structured trace we persist
     const plan = this.routing.buildPlan({
@@ -101,6 +131,17 @@ export class CardRecommendationService {
       aiSelectedCardId: aiResult.recommendedCardId,
       aiRewardBreakdown: aiResult.rewardBreakdown ?? null,
     });
+
+    const winnerCard = scored.find((s) => s.cardId === plan.selectedCardId) ?? scored[0];
+    const savings = winnerCard
+      ? this.savings.calculateSavings(amount, winnerCard, scored)
+      : {
+        cashbackEarned: 0,
+        discountAmount: 0,
+        pointsValue: 0,
+        installmentValue: 0,
+        totalSavedAmount: 0,
+      };
 
     // 5. Merge AI-authored per-card rejection lines with the routing plan
     const rejectedWithReasons = plan.rejectedCards.map((r) => {
@@ -117,6 +158,7 @@ export class CardRecommendationService {
       confidence: aiResult.confidence,
       rewardBreakdown: aiResult.rewardBreakdown ?? null,
       routingPlan: { ...plan, rejectedCards: rejectedWithReasons },
+      savings,
       aiRaw: aiResult,
     };
   }
@@ -131,6 +173,13 @@ export class CardRecommendationService {
       confidence: 0,
       rewardBreakdown: null,
       routingPlan: null,
+      savings: {
+        cashbackEarned: 0,
+        discountAmount: 0,
+        pointsValue: 0,
+        installmentValue: 0,
+        totalSavedAmount: 0,
+      },
       aiRaw: null,
     };
   }
@@ -156,5 +205,6 @@ export interface AiRecommendationResult {
   confidence: number;
   rewardBreakdown: { type: string; value: number; unit: string } | null;
   routingPlan: RoutingPlan | null;
+  savings: SavingsBreakdownResult;
   aiRaw: AiRawDecision | null;
 }

@@ -204,6 +204,14 @@ model Recommendation {
   campaignMatches    Json?
   aiRawResponse      Json?
 
+  // ── TRY Savings Values ──
+  cashbackEarned    Decimal @default(0.00) @db.Decimal(12, 2)
+  discountAmount    Decimal @default(0.00) @db.Decimal(12, 2)
+  pointsValue       Decimal @default(0.00) @db.Decimal(12, 2)
+  installmentValue  Decimal @default(0.00) @db.Decimal(12, 2)
+  aiRoutingGain     Decimal @default(0.00) @db.Decimal(12, 2)
+  totalSavedAmount  Decimal @default(0.00) @db.Decimal(12, 2)
+
   createdAt          DateTime @default(now())
 
   transaction        Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)

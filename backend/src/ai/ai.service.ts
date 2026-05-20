@@ -16,7 +16,8 @@ export class AiService {
   constructor(private readonly config: ConfigService) {
     const apiKey = this.config.getOrThrow<string>('GEMINI_API_KEY');
     const genAI = new GoogleGenerativeAI(apiKey);
-    this.model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    this.model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    this.logger.log('AiService initialized successfully with Gemini API Key.');
   }
 
   /**
@@ -49,17 +50,16 @@ export class AiService {
         const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         return JSON.parse(cleaned) as T;
       } catch (error) {
+        const errMessage = error instanceof Error ? error.message : String(error);
+       
         this.logger.warn(
-          `AI generation failed (attempt ${attempt + 1}/${retries + 1}): ${error instanceof Error ? error.message : error}`,
+          `AI generation failed (attempt ${attempt + 1}/${retries + 1}): ${errMessage}`,
         );
 
-        if (attempt === retries) {
-          this.logger.error('All AI generation attempts failed');
-          throw error;
-        }
-
-        // Exponential backoff
-        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        // Exponential backoff for transient errors
+        const backoffMs = 1000 * Math.pow(2, attempt);
+        this.logger.log(`Transient error encountered. Retrying in ${backoffMs}ms...`);
+        await new Promise((r) => setTimeout(r, backoffMs));
       }
     }
 

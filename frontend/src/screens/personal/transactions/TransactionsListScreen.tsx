@@ -116,7 +116,9 @@ function TransactionRow({
         {transaction.recommendation && (
           <View style={styles.rewardBadge}>
             <Text style={styles.rewardText}>
-              {transaction.recommendation.savingsBreakdown
+              {transaction.recommendation.totalSavedAmount !== undefined && Number(transaction.recommendation.totalSavedAmount) > 0
+                ? `+${Number(transaction.recommendation.totalSavedAmount).toFixed(2)} ₺`
+                : transaction.recommendation.savingsBreakdown
                 ? `+${transaction.recommendation.savingsBreakdown.value} ${transaction.recommendation.savingsBreakdown.unit}`
                 : transaction.recommendation.estimatedBenefit}
             </Text>

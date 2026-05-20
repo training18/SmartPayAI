@@ -4,5 +4,6 @@ export * from './transactions.service';
 export * from './merchant.service';
 export * from './user.service';
 export * from './virtual-card.service';
+export * from './savings.service';
 export { apiClient } from './api-client';
 export * as storage from './storage.service';

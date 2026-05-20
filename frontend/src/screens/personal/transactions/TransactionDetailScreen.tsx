@@ -120,6 +120,15 @@ export default function TransactionDetailScreen() {
               </Text>
             </View>
           )}
+
+          {transaction?.recommendation && transaction.recommendation.totalSavedAmount !== undefined && Number(transaction.recommendation.totalSavedAmount) > 0 && (
+            <View style={styles.savingsHeroBadge}>
+              <Ionicons name="sparkles" size={13} color="#7DFFA2" style={{ marginRight: 6 }} />
+              <Text style={styles.savingsHeroText}>
+                Tasarruf: +{Number(transaction.recommendation.totalSavedAmount).toFixed(2)} ₺
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* AI RECOMMENDATION CARD */}
@@ -151,31 +160,41 @@ export default function TransactionDetailScreen() {
             </Text>
 
             <View style={styles.statsRow}>
-              <View>
+              <View style={{ flex: 1.2 }}>
                 <View style={styles.statLabelRow}>
-                  <Ionicons name="wallet" size={14} color="#999" />
-                  <Text style={styles.statLabel}>BENEFIT</Text>
+                  <Ionicons name="wallet" size={12} color="#999" />
+                  <Text style={styles.statLabel} numberOfLines={1}>TASARRUF</Text>
                 </View>
 
-                <Text style={styles.successValue}>
-                  {savings
+                <Text style={styles.successValue} numberOfLines={1}>
+                  {transaction.recommendation.totalSavedAmount !== undefined
+                    ? `${Number(transaction.recommendation.totalSavedAmount).toFixed(2)} ₺`
+                    : savings
                     ? `${savings.value} ${savings.unit}`
                     : transaction.recommendation.estimatedBenefit}
                 </Text>
-                {savings?.installments ? (
-                  <Text style={styles.routeCardSub}>
-                    {savings.installments}x installment
-                  </Text>
-                ) : null}
               </View>
 
-              <View>
+              <View style={{ flex: 1.1, alignItems: 'center' }}>
                 <View style={styles.statLabelRow}>
-                  <Ionicons name="flash" size={14} color="#999" />
-                  <Text style={styles.statLabel}>CONFIDENCE</Text>
+                  <Ionicons name="sparkles" size={12} color="#999" />
+                  <Text style={styles.statLabel} numberOfLines={1}>AI KAZANCI</Text>
                 </View>
 
-                <Text style={styles.primaryValue}>
+                <Text style={styles.aiGainValue} numberOfLines={1}>
+                  {transaction.recommendation.aiRoutingGain !== undefined
+                    ? `${Number(transaction.recommendation.aiRoutingGain).toFixed(2)} ₺`
+                    : '—'}
+                </Text>
+              </View>
+
+              <View style={{ flex: 0.9, alignItems: 'flex-end' }}>
+                <View style={styles.statLabelRow}>
+                  <Ionicons name="flash" size={12} color="#999" />
+                  <Text style={styles.statLabel} numberOfLines={1}>GÜVEN</Text>
+                </View>
+
+                <Text style={styles.primaryValue} numberOfLines={1}>
                   {Math.round(transaction.recommendation.confidence * 100)}%
                 </Text>
               </View>
@@ -367,6 +386,13 @@ function TransactionDetailsModal({
               value={transaction.recommendation.estimatedBenefit}
             />
           )}
+          {transaction.recommendation?.totalSavedAmount !== undefined && (
+            <DetailRow
+              label="Total Saved"
+              value={`${Number(transaction.recommendation.totalSavedAmount).toFixed(2)} ₺`}
+              strong
+            />
+          )}
 
           {transaction.recommendation?.reason && (
             <View style={styles.reasonBox}>
@@ -555,14 +581,14 @@ const styles = StyleSheet.create({
 
   successValue: {
     color: '#7DFFA2',
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
     marginTop: 10,
   },
 
   primaryValue: {
     color: '#BBC3FF',
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
     marginTop: 10,
   },
@@ -801,5 +827,30 @@ const styles = StyleSheet.create({
     color: '#BBC3FF',
     fontSize: 13,
     lineHeight: 18,
+  },
+
+  savingsHeroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    backgroundColor: 'rgba(125,255,162,0.12)',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(125,255,162,0.25)',
+  },
+
+  savingsHeroText: {
+    color: '#7DFFA2',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  aiGainValue: {
+    color: '#BBC3FF',
+    fontSize: 24,
+    fontWeight: '700',
+    marginTop: 10,
   },
 });

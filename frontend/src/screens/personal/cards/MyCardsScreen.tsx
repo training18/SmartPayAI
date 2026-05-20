@@ -27,7 +27,7 @@ import type { BackendTransaction, SavedCard } from '@/src/types';
 
 type CopyField = 'pan' | 'holder' | 'expiry' | 'cvv';
 
-const SMART_SPENDING_DAYS = 6;
+const SMART_SPENDING_DAYS = 30;
 const BAR_MAX_HEIGHT = 90;
 const BAR_MIN_HEIGHT = 8;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -41,23 +41,27 @@ function parseSavingsRate(benefit: string | undefined | null): number {
   return Number.isFinite(pct) ? pct / 100 : 0;
 }
 
-/** Build the Smart Spending summary (saved-this-week + last-6-day bars). */
+/** Build the Smart Spending summary (saved-this-month + last-30-day bars). */
 function buildSmartSpending(transactions: BackendTransaction[]) {
-  const now = Date.now();
-  const weekStart = now - 7 * ONE_DAY_MS;
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
   const completed = transactions.filter((t) => t.status === 'COMPLETED');
-  const recent = completed.filter((t) => new Date(t.createdAt).getTime() >= weekStart);
+  const recent = completed.filter((t) => new Date(t.createdAt).getTime() >= monthStart);
 
-  const savedThisWeek = recent.reduce((sum, t) => {
+  const savedThisMonth = recent.reduce((sum, t) => {
+    if (t.recommendation?.totalSavedAmount !== undefined) {
+      return sum + Number(t.recommendation.totalSavedAmount);
+    }
     const rate = parseSavingsRate(t.recommendation?.estimatedBenefit);
     return sum + t.amount * rate;
   }, 0);
 
   // Daily spend buckets — index 0 = (DAYS-1) days ago, last index = today.
   const buckets = new Array<number>(SMART_SPENDING_DAYS).fill(0);
+  const nowMs = now.getTime();
   for (const t of completed) {
-    const ageDays = Math.floor((now - new Date(t.createdAt).getTime()) / ONE_DAY_MS);
+    const ageDays = Math.floor((nowMs - new Date(t.createdAt).getTime()) / ONE_DAY_MS);
     if (ageDays < 0 || ageDays >= SMART_SPENDING_DAYS) continue;
     buckets[SMART_SPENDING_DAYS - 1 - ageDays] += t.amount;
   }
@@ -70,7 +74,7 @@ function buildSmartSpending(transactions: BackendTransaction[]) {
   );
 
   return {
-    savedThisWeek,
+    savedThisMonth,
     currency: recent[0]?.currency ?? completed[0]?.currency ?? 'TRY',
     bars,
   };
@@ -300,12 +304,12 @@ export default function MyCardsScreen() {
           </View>
 
           <Text style={styles.description}>
-            SmartPay has maximized rewards across your wallets this week.
+            SmartPay has maximized rewards across your wallets this month.
           </Text>
 
           <View style={styles.savedContainer}>
             <Text style={styles.savedAmount}>
-              +{formatCurrency(smartSpending.savedThisWeek, smartSpending.currency)}
+              +{formatCurrency(smartSpending.savedThisMonth, smartSpending.currency)}
             </Text>
             <Text style={styles.savedText}>Saved</Text>
           </View>
@@ -368,7 +372,11 @@ export default function MyCardsScreen() {
 
                 {tx.recommendation && (
                   <View style={styles.rewardBadge}>
-                    <Text style={styles.rewardText}>{tx.recommendation.estimatedBenefit}</Text>
+                    <Text style={styles.rewardText}>
+                      {tx.recommendation.totalSavedAmount !== undefined && Number(tx.recommendation.totalSavedAmount) > 0
+                        ? `+${Number(tx.recommendation.totalSavedAmount).toFixed(2)} ₺`
+                        : tx.recommendation.estimatedBenefit}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -758,14 +766,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginTop: 24,
     height: 100,
-    gap: 8,
+    gap: 3,
   },
 
   bar: {
     flex: 1,
     backgroundColor: '#BBC3FF',
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
   },
 
   transactionsHeader: {

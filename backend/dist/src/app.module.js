@@ -22,6 +22,7 @@ const campaigns_module_1 = require("./campaigns/campaigns.module");
 const merchants_module_1 = require("./merchants/merchants.module");
 const ai_module_1 = require("./ai/ai.module");
 const transactions_module_1 = require("./transactions/transactions.module");
+const savings_module_1 = require("./savings/savings.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -38,12 +39,14 @@ exports.AppModule = AppModule = __decorate([
             merchants_module_1.MerchantsModule,
             ai_module_1.AiModule,
             transactions_module_1.TransactionsModule,
+            savings_module_1.SavingsModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: guards_1.JwtAuthGuard },
             { provide: core_1.APP_FILTER, useClass: filters_1.AllExceptionsFilter },
             { provide: core_1.APP_INTERCEPTOR, useClass: interceptors_1.LoggingInterceptor },
             { provide: core_1.APP_INTERCEPTOR, useClass: interceptors_1.TransformInterceptor },
+            { provide: core_1.APP_INTERCEPTOR, useClass: interceptors_1.RequestDeduplicationInterceptor },
         ],
     })
 ], AppModule);

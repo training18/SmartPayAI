@@ -40,6 +40,15 @@ export default function PersonalLayout() {
         }}
       />
       <Tabs.Screen
+        name="savings"
+        options={{
+          title: 'Saved',
+          tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+            <Ionicons name="sparkles" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="transactions"
         options={{
           title: 'Activity',

@@ -3,13 +3,21 @@ import { Prisma, RewardType, CardType } from '@prisma/client';
 import { detectCardNetwork, CardNetwork } from '../saved-cards/utils/card-network.util';
 
 /**
- * Deterministic card scoring engine.
+ * Deterministic card scoring engine — pure reward optimization.
  *
  * Sits between the raw {cards, campaigns} input and the LLM. For each user
  * card we identify the campaigns it actually qualifies for (bank + category +
  * card type + optional network filter parsed from the campaign description)
- * and compute the expected reward value. The AI then chooses between
- * structured candidates instead of doing arithmetic on its own.
+ * and compute the expected reward value normalized to TL.
+ *
+ * The AI then chooses between structured candidates instead of doing
+ * arithmetic on its own.
+ *
+ * Scoring is based exclusively on measurable monetary rewards:
+ * cashback, bank reward points, miles, chip-para, MaxiPuan, Worldpuan,
+ * bonus rewards, and campaign-based earnings.
+ *
+ * Installment count / installment utility is NOT part of the scoring.
  */
 
 type SavedCardRow = Prisma.SavedCardGetPayload<Record<string, never>>;
@@ -22,9 +30,10 @@ export interface CampaignMatch {
   rewardRate: number;
   /** Computed reward value for this transaction, capped by maxReward. */
   rewardValue: number;
-  /** Display unit: "TL" for cashback/discount; "points"/"miles" otherwise. */
+  /** Reward value normalized to TL equivalent for deterministic comparison. */
+  rewardValueTL: number;
+  /** Display unit: "TL" for cashback/discount; "puan" for points; "mil" for miles. */
   rewardUnit: string;
-  installmentCount: number | null;
   description: string;
 }
 
@@ -37,11 +46,11 @@ export interface ScoredCard {
   networkLabel: string;
   cardAlias: string | null;
   rewardType: RewardType;
-  /** Best matched campaign (highest expectedRewardValue). Null if none. */
+  /** Best matched campaign (highest rewardValueTL). Null if none. */
   bestMatch: CampaignMatch | null;
-  /** All qualifying campaigns, sorted by expected reward desc. */
+  /** All qualifying campaigns, sorted by rewardValueTL desc. */
   matches: CampaignMatch[];
-  /** Aggregate score used as deterministic tiebreaker. */
+  /** Aggregate score (TL-normalized) used as deterministic tiebreaker. */
   score: number;
 }
 
@@ -59,7 +68,7 @@ export class CardScoringService {
     const scored = cards.map((card) => this.scoreSingleCard(card, campaigns, amount));
     scored.sort((a, b) => b.score - a.score);
     this.logger.debug(
-      `Scored ${scored.length} cards — top: ${scored[0]?.bankName} (score=${scored[0]?.score.toFixed(2)})`,
+      `Scored ${scored.length} cards — top: ${scored[0]?.bankName} (score=${scored[0]?.score.toFixed(2)} TL)`,
     );
     return scored;
   }
@@ -70,7 +79,7 @@ export class CardScoringService {
     const matches: CampaignMatch[] = campaigns
       .filter((c) => this.campaignApplies(c, card, net.network))
       .map((c) => this.computeReward(c, amount))
-      .sort((a, b) => b.rewardValue - a.rewardValue);
+      .sort((a, b) => b.rewardValueTL - a.rewardValueTL);
 
     const best = matches[0] ?? null;
     return {
@@ -84,7 +93,7 @@ export class CardScoringService {
       rewardType: card.rewardType,
       bestMatch: best,
       matches,
-      score: best?.rewardValue ?? 0,
+      score: best?.rewardValueTL ?? 0,
     };
   }
 
@@ -115,12 +124,22 @@ export class CardScoringService {
     return null;
   }
 
-  /** Compute the realized reward for an amount against a campaign. */
+  /**
+   * Compute the realized reward for an amount against a campaign.
+   *
+   * All reward types are normalized to a TL-equivalent value:
+   * - CASHBACK / DISCOUNT → 1:1 TL
+   * - POINTS (chip-para, MaxiPuan, Worldpuan, bonus) → 1 point = 1 TL
+   * - MILES → 1 mile = 0.05 TL
+   * - INSTALLMENT / NONE → 0 TL (not a measurable reward)
+   */
   private computeReward(campaign: CampaignRow, amount: number): CampaignMatch {
     const rate = Number(campaign.rewardRate);
     const cap = campaign.maxReward ? Number(campaign.maxReward) : Number.POSITIVE_INFINITY;
     const raw = (amount * rate) / 100;
     const value = Math.min(raw, cap);
+
+    const rewardValueTL = this.toTL(campaign.rewardType, value);
 
     return {
       campaignId: campaign.id,
@@ -128,10 +147,27 @@ export class CardScoringService {
       rewardType: campaign.rewardType,
       rewardRate: rate,
       rewardValue: Number(value.toFixed(2)),
+      rewardValueTL: Number(rewardValueTL.toFixed(2)),
       rewardUnit: this.unitFor(campaign.rewardType),
-      installmentCount: campaign.installmentCount,
       description: campaign.description,
     };
+  }
+
+  /**
+   * Normalize a reward value to TL equivalent.
+   */
+  private toTL(rewardType: RewardType, value: number): number {
+    switch (rewardType) {
+      case RewardType.CASHBACK:
+      case RewardType.DISCOUNT:
+        return value; // 1:1 TL
+      case RewardType.POINTS:
+        return value; // 1 point = 1 TL (MaxiPuan, Worldpuan, chip-para)
+      case RewardType.MILES:
+        return value * 0.05; // 1 mile = 0.05 TL
+      default:
+        return 0; // INSTALLMENT, NONE — no measurable reward
+    }
   }
 
   private unitFor(rewardType: RewardType): string {
@@ -140,11 +176,9 @@ export class CardScoringService {
       case RewardType.DISCOUNT:
         return 'TL';
       case RewardType.POINTS:
-        return 'points';
+        return 'puan';
       case RewardType.MILES:
-        return 'miles';
-      case RewardType.INSTALLMENT:
-        return 'installments';
+        return 'mil';
       default:
         return '';
     }

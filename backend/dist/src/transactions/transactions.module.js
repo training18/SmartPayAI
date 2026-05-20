@@ -12,12 +12,13 @@ const transactions_controller_1 = require("./transactions.controller");
 const transactions_service_1 = require("./transactions.service");
 const ai_module_1 = require("../ai/ai.module");
 const virtual_cards_module_1 = require("../virtual-cards/virtual-cards.module");
+const savings_module_1 = require("../savings/savings.module");
 let TransactionsModule = class TransactionsModule {
 };
 exports.TransactionsModule = TransactionsModule;
 exports.TransactionsModule = TransactionsModule = __decorate([
     (0, common_1.Module)({
-        imports: [ai_module_1.AiModule, virtual_cards_module_1.VirtualCardsModule],
+        imports: [ai_module_1.AiModule, virtual_cards_module_1.VirtualCardsModule, savings_module_1.SavingsModule],
         controllers: [transactions_controller_1.TransactionsController],
         providers: [transactions_service_1.TransactionsService],
         exports: [transactions_service_1.TransactionsService],

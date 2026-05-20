@@ -51,7 +51,6 @@ export interface Campaign {
   rewardRate: number;
   minAmount: number | null;
   maxReward: number | null;
-  installmentCount: number | null;
   isActive: boolean;
   startsAt: string;
   endsAt: string | null;

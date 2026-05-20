@@ -7,10 +7,11 @@ import { RoutingSimulationService } from './routing-simulation.service';
 import { MerchantsModule } from '../merchants/merchants.module';
 import { CampaignsModule } from '../campaigns/campaigns.module';
 import { SavedCardsModule } from '../saved-cards/saved-cards.module';
+import { SavingsModule } from '../savings/savings.module';
 import { AiController } from './ai.controller';
 
 @Module({
-  imports: [MerchantsModule, CampaignsModule, SavedCardsModule],
+  imports: [MerchantsModule, CampaignsModule, SavedCardsModule, SavingsModule],
   controllers: [AiController],
   providers: [
     AiService,

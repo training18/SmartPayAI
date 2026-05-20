@@ -28,7 +28,7 @@ export class TransactionsService {
     private readonly merchantIntel: MerchantIntelligenceService,
     private readonly cardRecommendation: CardRecommendationService,
     private readonly virtualCards: VirtualCardsService,
-  ) {}
+  ) { }
 
   /**
    * STEP 1: Initiate a payment — runs the full AI pipeline.
@@ -89,6 +89,11 @@ export class TransactionsService {
         reason: recommendation.reason,
         estimatedBenefit: recommendation.estimatedBenefit,
         confidence: recommendation.confidence,
+        cashbackEarned: recommendation.savings.cashbackEarned,
+        discountAmount: recommendation.savings.discountAmount,
+        pointsValue: recommendation.savings.pointsValue,
+        installmentValue: 0,
+        totalSavedAmount: recommendation.savings.totalSavedAmount,
         savingsBreakdown: (recommendation.routingPlan?.savingsBreakdown ??
           null) as unknown as Prisma.InputJsonValue,
         rejectedCards: (recommendation.routingPlan?.rejectedCards ??
@@ -240,6 +245,12 @@ export class TransactionsService {
       reason: rec.reason,
       estimatedBenefit: rec.estimatedBenefit,
       confidence: Number(rec.confidence),
+      cashbackEarned: Number(rec.cashbackEarned),
+      discountAmount: Number(rec.discountAmount),
+      pointsValue: Number(rec.pointsValue),
+      installmentValue: Number(rec.installmentValue),
+      aiRoutingGain: Number(rec.aiRoutingGain),
+      totalSavedAmount: Number(rec.totalSavedAmount),
       savingsBreakdown: rec.savingsBreakdown ?? null,
       rejectedCards: rec.rejectedCards ?? null,
       campaignMatches: rec.campaignMatches ?? null,

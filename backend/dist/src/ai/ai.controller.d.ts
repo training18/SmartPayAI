@@ -22,23 +22,6 @@ export declare class AiController {
         reasoning: string;
         merchantId: string;
     }>;
-    recommendCard(user: JwtPayload, dto: RecommendCardDto): Promise<{
-        recommendedCardId: string;
-        recommendedBank: string;
-        reason: string;
-        estimatedBenefit: string;
-        confidence: number;
-        rewardBreakdown?: {
-            type: string;
-            value: number;
-            unit: string;
-        } | undefined;
-    } | {
-        recommendedCardId: null;
-        recommendedBank: string;
-        reason: string;
-        estimatedBenefit: string;
-        confidence: number;
-    }>;
+    recommendCard(user: JwtPayload, dto: RecommendCardDto): Promise<import("./card-recommendation.service").AiRecommendationResult>;
 }
 export {};

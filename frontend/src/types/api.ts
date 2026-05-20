@@ -30,7 +30,7 @@ export type BackendUserRole = 'PERSONAL' | 'MERCHANT';
 export type BackendCardType = 'CREDIT' | 'DEBIT' | 'PREPAID';
 
 /** Backend reward type enum values. */
-export type BackendRewardType = 'CASHBACK' | 'POINTS' | 'MILES' | 'DISCOUNT' | 'INSTALLMENT' | 'NONE';
+export type BackendRewardType = 'CASHBACK' | 'POINTS' | 'MILES' | 'DISCOUNT' | 'NONE';
 
 /** Backend transaction status enum values. */
 export type BackendTransactionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED' | 'FAILED';

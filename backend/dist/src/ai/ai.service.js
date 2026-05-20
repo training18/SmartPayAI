@@ -22,7 +22,8 @@ let AiService = AiService_1 = class AiService {
         this.config = config;
         const apiKey = this.config.getOrThrow('GEMINI_API_KEY');
         const genAI = new generative_ai_1.GoogleGenerativeAI(apiKey);
-        this.model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        this.model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        this.logger.log('AiService initialized successfully with Gemini API Key.');
     }
     async generateJson(systemPrompt, userPrompt, retries = 2) {
         for (let attempt = 0; attempt <= retries; attempt++) {
@@ -41,12 +42,11 @@ let AiService = AiService_1 = class AiService {
                 return JSON.parse(cleaned);
             }
             catch (error) {
-                this.logger.warn(`AI generation failed (attempt ${attempt + 1}/${retries + 1}): ${error instanceof Error ? error.message : error}`);
-                if (attempt === retries) {
-                    this.logger.error('All AI generation attempts failed');
-                    throw error;
-                }
-                await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+                const errMessage = error instanceof Error ? error.message : String(error);
+                this.logger.warn(`AI generation failed (attempt ${attempt + 1}/${retries + 1}): ${errMessage}`);
+                const backoffMs = 1000 * Math.pow(2, attempt);
+                this.logger.log(`Transient error encountered. Retrying in ${backoffMs}ms...`);
+                await new Promise((r) => setTimeout(r, backoffMs));
             }
         }
         throw new Error('AI generation failed after all retries');

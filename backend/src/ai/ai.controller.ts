@@ -44,7 +44,7 @@ export class AiController {
   constructor(
     private readonly merchantIntel: MerchantIntelligenceService,
     private readonly cardRecommendation: CardRecommendationService,
-  ) {}
+  ) { }
 
   @Post('analyze-merchant')
   @ApiOperation({ summary: 'AI-powered merchant analysis' })

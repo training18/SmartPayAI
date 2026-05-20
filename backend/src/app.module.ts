@@ -6,7 +6,7 @@ import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma';
 import { JwtAuthGuard } from './common/guards';
 import { AllExceptionsFilter } from './common/filters';
-import { LoggingInterceptor, TransformInterceptor } from './common/interceptors';
+import { LoggingInterceptor, TransformInterceptor, RequestDeduplicationInterceptor } from './common/interceptors';
 
 // ── Feature modules ──────────────────────────────────────────────────────────
 import { AuthModule } from './auth/auth.module';
@@ -17,6 +17,7 @@ import { CampaignsModule } from './campaigns/campaigns.module';
 import { MerchantsModule } from './merchants/merchants.module';
 import { AiModule } from './ai/ai.module';
 import { TransactionsModule } from './transactions/transactions.module';
+import { SavingsModule } from './savings/savings.module';
 
 /**
  * Root application module.
@@ -41,6 +42,7 @@ import { TransactionsModule } from './transactions/transactions.module';
     MerchantsModule,
     AiModule,
     TransactionsModule,
+    SavingsModule,
   ],
   providers: [
     // Global JWT auth guard — all routes require auth unless @Public()
@@ -49,9 +51,10 @@ import { TransactionsModule } from './transactions/transactions.module';
     // Global exception filter — structured error responses
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
 
-    // Global interceptors — logging + response envelope
+    // Global interceptors — logging + response envelope + deduplication
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: RequestDeduplicationInterceptor },
   ],
 })
 export class AppModule {}
