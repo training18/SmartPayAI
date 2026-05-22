@@ -5,6 +5,8 @@ export declare class VirtualCardsService {
     constructor(prisma: PrismaService);
     createForUser(userId: string, holderName: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         cardNumber: string;
         expiryMonth: number;
         expiryYear: number;
@@ -13,12 +15,12 @@ export declare class VirtualCardsService {
         balance: import("@prisma/client-runtime-utils").Decimal;
         provider: string;
         status: import("@prisma/client").$Enums.VirtualCardStatus;
-        createdAt: Date;
-        updatedAt: Date;
         userId: string;
     }>;
     getByUserId(userId: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         cardNumber: string;
         expiryMonth: number;
         expiryYear: number;
@@ -27,12 +29,12 @@ export declare class VirtualCardsService {
         balance: import("@prisma/client-runtime-utils").Decimal;
         provider: string;
         status: import("@prisma/client").$Enums.VirtualCardStatus;
-        createdAt: Date;
-        updatedAt: Date;
         userId: string;
     } | null>;
     deductBalance(userId: string, amount: number): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         cardNumber: string;
         expiryMonth: number;
         expiryYear: number;
@@ -41,8 +43,6 @@ export declare class VirtualCardsService {
         balance: import("@prisma/client-runtime-utils").Decimal;
         provider: string;
         status: import("@prisma/client").$Enums.VirtualCardStatus;
-        createdAt: Date;
-        updatedAt: Date;
         userId: string;
     }>;
     private generateCardNumber;

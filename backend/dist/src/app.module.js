@@ -27,6 +27,7 @@ const ai_module_1 = require("./ai/ai.module");
 const transactions_module_1 = require("./transactions/transactions.module");
 const savings_module_1 = require("./savings/savings.module");
 const campaign_service_module_1 = require("./campaign-service/campaign-service.module");
+const cargo_module_1 = require("./cargo/cargo.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -74,6 +75,7 @@ exports.AppModule = AppModule = __decorate([
             transactions_module_1.TransactionsModule,
             savings_module_1.SavingsModule,
             campaign_service_module_1.CampaignServiceModule,
+            cargo_module_1.CargoModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: guards_1.JwtAuthGuard },

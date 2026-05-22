@@ -64,6 +64,8 @@ model User {
   virtualCard   VirtualCard?
   savedCards    SavedCard[]
   transactions  Transaction[]
+  shipments     Shipment[]
+  shippingAnalytics ShippingAnalytics?
 
   @@map("users")
 }
@@ -251,3 +253,112 @@ model Recommendation {
 
   @@map("recommendations")
 }
+
+// ── Cargo Providers ──────────────────────────────────────────────────────────
+
+model CargoProvider {
+  id                  String   @id @default(uuid())
+  name                String
+  code                String   @unique
+  baseRate            Decimal  @db.Decimal(12, 2)
+  perKgRate           Decimal  @db.Decimal(12, 2)
+  perDesiRate         Decimal  @db.Decimal(12, 2)
+  reliabilityScore    Decimal  @db.Decimal(5, 2) // e.g. 91.00
+  deliverySuccessRate Decimal  @db.Decimal(5, 2) // e.g. 98.50
+  avgDeliveryDays     Decimal  @db.Decimal(3, 1) // e.g. 1.5
+  isActive            Boolean  @default(true)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  quotes              ShipmentQuote[]
+  shipments           Shipment[]
+
+  @@map("cargo_providers")
+}
+
+// ── Shipments ────────────────────────────────────────────────────────────────
+
+model Shipment {
+  id                    String   @id @default(uuid())
+  merchantId            String
+  senderName            String
+  senderAddress         String
+  senderCity            String
+  receiverName          String
+  receiverAddress       String
+  receiverCity          String
+  width                 Decimal  @db.Decimal(8, 2)
+  height                Decimal  @db.Decimal(8, 2)
+  length                Decimal  @db.Decimal(8, 2)
+  desi                  Decimal  @db.Decimal(8, 2)
+  weight                Decimal  @db.Decimal(8, 2)
+  status                String   @default("PENDING") // PENDING, SHIPPED, DELIVERED, CANCELLED
+  selectedProviderId    String?
+  finalPrice            Decimal? @db.Decimal(12, 2)
+  estimatedDeliveryDays Int?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  merchant              User            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  selectedProvider      CargoProvider?  @relation(fields: [selectedProviderId], references: [id])
+  quotes                ShipmentQuote[]
+  tracking              ShipmentTracking[]
+
+  @@map("shipments")
+}
+
+// ── Shipment Quotes (Normalized pricing) ────────────────────────────────────
+
+model ShipmentQuote {
+  id                    String   @id @default(uuid())
+  shipmentId            String
+  providerId            String
+  price                 Decimal  @db.Decimal(12, 2)
+  estimatedDeliveryDays Int
+  aiScore               Decimal  @db.Decimal(5, 2) // 0-100
+  rank                  Int
+  isRecommended         Boolean  @default(false)
+  createdAt             DateTime @default(now())
+
+  shipment              Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  provider              CargoProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([shipmentId, providerId])
+  @@map("shipment_quotes")
+}
+
+// ── Shipment Tracking ────────────────────────────────────────────────────────
+
+model ShipmentTracking {
+  id          String   @id @default(uuid())
+  shipmentId  String
+  status      String
+  location    String
+  description String
+  createdAt   DateTime @default(now())
+
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@map("shipment_tracking")
+}
+
+// ── Shipping Analytics ───────────────────────────────────────────────────────
+
+model ShippingAnalytics {
+  id             String   @id @default(uuid())
+  merchantId     String   @unique
+  totalShipments Int      @default(0)
+  totalSpent     Decimal  @default(0.00) @db.Decimal(12, 2)
+  totalSaved     Decimal  @default(0.00) @db.Decimal(12, 2)
+  avgDeliveryTime Decimal  @default(0.00) @db.Decimal(5, 2)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  merchant       User     @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("shipping_analytics")
+}
+

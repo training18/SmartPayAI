@@ -22,6 +22,7 @@ import { AiModule } from './ai/ai.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { SavingsModule } from './savings/savings.module';
 import { CampaignServiceModule } from './campaign-service/campaign-service.module';
+import { CargoModule } from './cargo/cargo.module';
 
 /**
  * Root application module.
@@ -83,6 +84,7 @@ import { CampaignServiceModule } from './campaign-service/campaign-service.modul
     TransactionsModule,
     SavingsModule,
     CampaignServiceModule,
+    CargoModule,
   ],
   providers: [
     // Global JWT auth guard — all routes require auth unless @Public()

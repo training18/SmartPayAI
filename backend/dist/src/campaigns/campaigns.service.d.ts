@@ -11,11 +11,12 @@ export declare class CampaignsService {
     }): Promise<{
         category: string;
         description: string;
-        source: import("@prisma/client").$Enums.CampaignSource;
         id: string;
-        title: string;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        source: import("@prisma/client").$Enums.CampaignSource;
+        title: string;
         bankName: string;
         cardType: import("@prisma/client").$Enums.CardType | null;
         rewardType: import("@prisma/client").$Enums.RewardType;
@@ -23,7 +24,6 @@ export declare class CampaignsService {
         minAmount: import("@prisma/client-runtime-utils").Decimal | null;
         maxReward: import("@prisma/client-runtime-utils").Decimal | null;
         installmentCount: number | null;
-        isActive: boolean;
         endsAt: Date | null;
         sourceId: string | null;
         rawText: string | null;
@@ -37,11 +37,12 @@ export declare class CampaignsService {
     findByCategory(category: string, bankNames?: string[]): Promise<{
         category: string;
         description: string;
-        source: import("@prisma/client").$Enums.CampaignSource;
         id: string;
-        title: string;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        source: import("@prisma/client").$Enums.CampaignSource;
+        title: string;
         bankName: string;
         cardType: import("@prisma/client").$Enums.CardType | null;
         rewardType: import("@prisma/client").$Enums.RewardType;
@@ -49,7 +50,6 @@ export declare class CampaignsService {
         minAmount: import("@prisma/client-runtime-utils").Decimal | null;
         maxReward: import("@prisma/client-runtime-utils").Decimal | null;
         installmentCount: number | null;
-        isActive: boolean;
         endsAt: Date | null;
         sourceId: string | null;
         rawText: string | null;
@@ -63,11 +63,12 @@ export declare class CampaignsService {
     create(dto: CreateCampaignDto): Promise<{
         category: string;
         description: string;
-        source: import("@prisma/client").$Enums.CampaignSource;
         id: string;
-        title: string;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
+        source: import("@prisma/client").$Enums.CampaignSource;
+        title: string;
         bankName: string;
         cardType: import("@prisma/client").$Enums.CardType | null;
         rewardType: import("@prisma/client").$Enums.RewardType;
@@ -75,7 +76,6 @@ export declare class CampaignsService {
         minAmount: import("@prisma/client-runtime-utils").Decimal | null;
         maxReward: import("@prisma/client-runtime-utils").Decimal | null;
         installmentCount: number | null;
-        isActive: boolean;
         endsAt: Date | null;
         sourceId: string | null;
         rawText: string | null;

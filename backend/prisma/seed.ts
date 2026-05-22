@@ -59,6 +59,53 @@ async function main() {
   }
 
   console.log(`✅ Seeded ${mccMappings.length} MCC mappings`);
+
+  // ── Cargo Providers ───────────────────────────────────────────────────────
+  console.log('🌱 Seeding cargo providers...');
+  const cargoProviders = [
+    {
+      name: 'Yurtiçi Kargo',
+      code: 'yurtici',
+      baseRate: 45.00,
+      perKgRate: 5.00,
+      perDesiRate: 4.50,
+      reliabilityScore: 91.00,
+      deliverySuccessRate: 98.20,
+      avgDeliveryDays: 1.2,
+      isActive: true,
+    },
+    {
+      name: 'Aras Kargo',
+      code: 'aras',
+      baseRate: 38.00,
+      perKgRate: 4.50,
+      perDesiRate: 4.00,
+      reliabilityScore: 84.00,
+      deliverySuccessRate: 95.50,
+      avgDeliveryDays: 1.8,
+      isActive: true,
+    },
+    {
+      name: 'MNG Kargo',
+      code: 'mng',
+      baseRate: 32.00,
+      perKgRate: 4.00,
+      perDesiRate: 3.50,
+      reliabilityScore: 79.00,
+      deliverySuccessRate: 94.00,
+      avgDeliveryDays: 2.2,
+      isActive: true,
+    },
+  ];
+
+  for (const provider of cargoProviders) {
+    await prisma.cargoProvider.upsert({
+      where: { code: provider.code },
+      create: provider,
+      update: provider,
+    });
+  }
+  console.log(`✅ Seeded ${cargoProviders.length} cargo providers`);
   console.log('');
   console.log('📡 Campaign data will be populated from live bank sources.');
   console.log('   Run POST /campaigns/refresh or wait for the cron job.');

@@ -106,27 +106,91 @@ export const merchantService = {
    */
   async listPayments(): Promise<MerchantPayment[]> {
     // For the merchant dashboard, we derive payments from real transactions.
-    // This is a passthrough that the merchant store can process.
     const { data: transactions } = await apiClient.get<BackendTransaction[]>('/transactions');
-    return transactions.map((t) => ({
-      id: t.id,
-      amount: t.amount,
-      currency: t.currency,
-      occurredAt: t.createdAt,
-      candidates: [],
-      routedProviderId: t.recommendation?.recommendedCardId ?? '',
-      routingReason: t.recommendation?.reason ?? 'No recommendation available',
-    }));
+    return transactions.map((t) => {
+      const cardBank = t.recommendation?.recommendedBank || '';
+      
+      // Simulate POS gateway rates. direct bank gateways have much cheaper rates on-us
+      const candidatesList = [
+        {
+          providerId: 'paytr',
+          providerName: 'PayTR',
+          commissionRate: 0.0185,
+        },
+        {
+          providerId: 'iyzipay',
+          providerName: 'İyzipay',
+          commissionRate: 0.022,
+        },
+        {
+          providerId: 'hepsipay',
+          providerName: 'Hepsipay',
+          commissionRate: 0.020,
+        },
+        {
+          providerId: 'garanti_pos',
+          providerName: 'Garanti POS',
+          commissionRate: cardBank === 'Garanti BBVA' ? 0.0115 : 0.024,
+        },
+        {
+          providerId: 'ykb_pos',
+          providerName: 'Yapı Kredi POS',
+          commissionRate: cardBank === 'Yapı Kredi' ? 0.012 : 0.0245,
+        },
+        {
+          providerId: 'akbank_pos',
+          providerName: 'Akbank POS',
+          commissionRate: cardBank === 'Akbank' ? 0.011 : 0.0235,
+        },
+        {
+          providerId: 'isbank_pos',
+          providerName: 'İş Bankası POS',
+          commissionRate: cardBank === 'İş Bankası' ? 0.0125 : 0.025,
+        },
+      ];
+
+      // Sort by commission rate ascending to pick the cheapest
+      candidatesList.sort((a, b) => a.commissionRate - b.commissionRate);
+
+      const chosen = candidatesList[0];
+      const worst = candidatesList[candidatesList.length - 1];
+      const savedAmount = (worst.commissionRate - chosen.commissionRate) * t.amount;
+      const routingReason = `Routed to ${chosen.providerName} to minimize commission rate (${(chosen.commissionRate * 100).toFixed(2)}% vs ${(worst.commissionRate * 100).toFixed(2)}% on ${worst.providerName}), saving ${savedAmount.toFixed(2)} ${t.currency}.`;
+
+      return {
+        id: t.id,
+        amount: t.amount,
+        currency: t.currency,
+        occurredAt: t.createdAt,
+        candidates: candidatesList,
+        routedProviderId: chosen.providerId,
+        routingReason,
+      };
+    });
   },
 
   /** Build analytics summary from transaction data. */
   async getSummary(): Promise<MerchantAnalyticsSummary> {
     const payments = await this.listPayments();
     const totalVolume = payments.reduce((sum, p) => sum + p.amount, 0);
+    
+    // Sum up actual commission paid and commission saved
+    let totalCommissionPaid = 0;
+    let totalCommissionSaved = 0;
+
+    payments.forEach((p) => {
+      const chosen = p.candidates.find((c) => c.providerId === p.routedProviderId);
+      const worst = p.candidates.reduce((a, b) => (a.commissionRate > b.commissionRate ? a : b));
+      if (chosen) {
+        totalCommissionPaid += p.amount * chosen.commissionRate;
+        totalCommissionSaved += p.amount * (worst.commissionRate - chosen.commissionRate);
+      }
+    });
+
     return {
       totalVolume,
-      totalCommissionPaid: 0,
-      totalCommissionSaved: 0,
+      totalCommissionPaid: Number(totalCommissionPaid.toFixed(2)),
+      totalCommissionSaved: Number(totalCommissionSaved.toFixed(2)),
       transactionCount: payments.length,
       currency: payments[0]?.currency ?? 'TRY',
     };

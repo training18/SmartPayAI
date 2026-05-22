@@ -127,9 +127,9 @@ export declare class TransactionsController {
         mcc: string | null;
         description: string | null;
         id: string;
-        status: import("@prisma/client").$Enums.TransactionStatus;
         createdAt: Date;
         updatedAt: Date;
+        status: import("@prisma/client").$Enums.TransactionStatus;
         userId: string;
         merchantId: string | null;
         merchantName: string;

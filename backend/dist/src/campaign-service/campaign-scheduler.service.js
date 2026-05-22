@@ -12,16 +12,25 @@ var CampaignSchedulerService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CampaignSchedulerService = void 0;
 const common_1 = require("@nestjs/common");
+const config_1 = require("@nestjs/config");
 const schedule_1 = require("@nestjs/schedule");
 const campaign_aggregator_service_1 = require("./campaign-aggregator.service");
 let CampaignSchedulerService = CampaignSchedulerService_1 = class CampaignSchedulerService {
     aggregator;
+    config;
     logger = new common_1.Logger(CampaignSchedulerService_1.name);
     isRefreshing = false;
-    constructor(aggregator) {
+    constructor(aggregator, config) {
         this.aggregator = aggregator;
+        this.config = config;
     }
     async onModuleInit() {
+        const isDev = this.config.get('NODE_ENV') === 'development';
+        const skipStartup = this.config.get('SKIP_STARTUP_CAMPAIGN_REFRESH') === 'true';
+        if (isDev || skipStartup) {
+            this.logger.log(`Campaign scheduler initialized — startup campaign refresh is SKIPPED (isDev: ${isDev}, skipStartup: ${skipStartup})`);
+            return;
+        }
         this.logger.log('Campaign scheduler initialized — scheduling initial refresh...');
         setTimeout(() => {
             this.refreshCampaigns().catch((err) => {
@@ -59,6 +68,7 @@ __decorate([
 ], CampaignSchedulerService.prototype, "refreshCampaigns", null);
 exports.CampaignSchedulerService = CampaignSchedulerService = CampaignSchedulerService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [campaign_aggregator_service_1.CampaignAggregatorService])
+    __metadata("design:paramtypes", [campaign_aggregator_service_1.CampaignAggregatorService,
+        config_1.ConfigService])
 ], CampaignSchedulerService);
 //# sourceMappingURL=campaign-scheduler.service.js.map

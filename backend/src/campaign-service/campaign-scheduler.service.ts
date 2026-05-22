@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CampaignAggregatorService } from './campaign-aggregator.service';
 
@@ -19,6 +20,7 @@ export class CampaignSchedulerService implements OnModuleInit {
 
   constructor(
     private readonly aggregator: CampaignAggregatorService,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -26,6 +28,16 @@ export class CampaignSchedulerService implements OnModuleInit {
    * Uses a short delay to let the app fully initialize first.
    */
   async onModuleInit() {
+    const isDev = this.config.get<string>('NODE_ENV') === 'development';
+    const skipStartup = this.config.get<string>('SKIP_STARTUP_CAMPAIGN_REFRESH') === 'true';
+
+    if (isDev || skipStartup) {
+      this.logger.log(
+        `Campaign scheduler initialized — startup campaign refresh is SKIPPED (isDev: ${isDev}, skipStartup: ${skipStartup})`
+      );
+      return;
+    }
+
     this.logger.log('Campaign scheduler initialized — scheduling initial refresh...');
 
     // Delay initial refresh by 5 seconds to let app boot complete
