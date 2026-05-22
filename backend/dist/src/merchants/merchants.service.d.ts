@@ -4,13 +4,13 @@ export declare class MerchantsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     findByName(merchantName: string): Promise<{
-        id: string;
+        mcc: string | null;
         category: string;
+        name: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         normalizedName: string;
-        mcc: string | null;
         spendingType: string | null;
         aiMetadata: Prisma.JsonValue | null;
     } | null>;
@@ -21,13 +21,13 @@ export declare class MerchantsService {
         spendingType?: string;
         aiMetadata?: Record<string, unknown>;
     }): Promise<{
-        id: string;
+        mcc: string | null;
         category: string;
+        name: string;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         normalizedName: string;
-        mcc: string | null;
         spendingType: string | null;
         aiMetadata: Prisma.JsonValue | null;
     }>;

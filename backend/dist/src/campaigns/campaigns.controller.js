@@ -16,17 +16,29 @@ exports.CampaignsController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const campaigns_service_1 = require("./campaigns.service");
+const campaign_aggregator_service_1 = require("../campaign-service/campaign-aggregator.service");
 const dto_1 = require("./dto");
 let CampaignsController = class CampaignsController {
     campaigns;
-    constructor(campaigns) {
+    aggregator;
+    constructor(campaigns, aggregator) {
         this.campaigns = campaigns;
+        this.aggregator = aggregator;
     }
     findAll(category, bankName, cardType) {
         return this.campaigns.findAll({ category, bankName, cardType });
     }
     create(dto) {
         return this.campaigns.create(dto);
+    }
+    refresh() {
+        return this.aggregator.refreshAll();
+    }
+    stats() {
+        return this.campaigns.getStats();
+    }
+    banks() {
+        return this.aggregator.getAvailableBanks();
     }
 };
 exports.CampaignsController = CampaignsController;
@@ -51,10 +63,32 @@ __decorate([
     __metadata("design:paramtypes", [dto_1.CreateCampaignDto]),
     __metadata("design:returntype", void 0)
 ], CampaignsController.prototype, "create", null);
+__decorate([
+    (0, common_1.Post)('refresh'),
+    (0, swagger_1.ApiOperation)({ summary: 'Trigger real-time campaign refresh from all bank connectors' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], CampaignsController.prototype, "refresh", null);
+__decorate([
+    (0, common_1.Get)('stats'),
+    (0, swagger_1.ApiOperation)({ summary: 'Campaign aggregation statistics' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], CampaignsController.prototype, "stats", null);
+__decorate([
+    (0, common_1.Get)('banks'),
+    (0, swagger_1.ApiOperation)({ summary: 'List available bank connectors' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], CampaignsController.prototype, "banks", null);
 exports.CampaignsController = CampaignsController = __decorate([
     (0, swagger_1.ApiTags)('Campaigns'),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.Controller)('campaigns'),
-    __metadata("design:paramtypes", [campaigns_service_1.CampaignsService])
+    __metadata("design:paramtypes", [campaigns_service_1.CampaignsService,
+        campaign_aggregator_service_1.CampaignAggregatorService])
 ], CampaignsController);
 //# sourceMappingURL=campaigns.controller.js.map

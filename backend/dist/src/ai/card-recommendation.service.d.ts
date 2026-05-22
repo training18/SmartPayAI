@@ -1,18 +1,18 @@
 import { AiService } from './ai.service';
-import { CampaignsService } from '../campaigns/campaigns.service';
+import { CampaignCacheService } from '../campaign-service/campaign-cache.service';
 import { SavedCardsService } from '../saved-cards/saved-cards.service';
 import { CardScoringService } from './card-scoring.service';
 import { RoutingSimulationService, RoutingPlan } from './routing-simulation.service';
 import { SavingsService, SavingsBreakdownResult } from '../savings/savings.service';
 export declare class CardRecommendationService {
     private readonly ai;
-    private readonly campaigns;
+    private readonly campaignCache;
     private readonly savedCards;
     private readonly scoring;
     private readonly routing;
     private readonly savings;
     private readonly logger;
-    constructor(ai: AiService, campaigns: CampaignsService, savedCards: SavedCardsService, scoring: CardScoringService, routing: RoutingSimulationService, savings: SavingsService);
+    constructor(ai: AiService, campaignCache: CampaignCacheService, savedCards: SavedCardsService, scoring: CardScoringService, routing: RoutingSimulationService, savings: SavingsService);
     recommend(userId: string, merchantName: string, merchantCategory: string, amount: number, currency?: string): Promise<AiRecommendationResult>;
     private emptyRecommendation;
 }

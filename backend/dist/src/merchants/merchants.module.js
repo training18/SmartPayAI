@@ -9,13 +9,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MerchantsModule = void 0;
 const common_1 = require("@nestjs/common");
 const merchants_service_1 = require("./merchants.service");
+const mcc_mapping_service_1 = require("./mcc-mapping.service");
 let MerchantsModule = class MerchantsModule {
 };
 exports.MerchantsModule = MerchantsModule;
 exports.MerchantsModule = MerchantsModule = __decorate([
     (0, common_1.Module)({
-        providers: [merchants_service_1.MerchantsService],
-        exports: [merchants_service_1.MerchantsService],
+        providers: [merchants_service_1.MerchantsService, mcc_mapping_service_1.MccMappingService],
+        exports: [merchants_service_1.MerchantsService, mcc_mapping_service_1.MccMappingService],
     })
 ], MerchantsModule);
 //# sourceMappingURL=merchants.module.js.map

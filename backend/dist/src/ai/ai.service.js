@@ -22,7 +22,7 @@ let AiService = AiService_1 = class AiService {
         this.config = config;
         const apiKey = this.config.getOrThrow('GEMINI_API_KEY');
         const genAI = new generative_ai_1.GoogleGenerativeAI(apiKey);
-        this.model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        this.model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
         this.logger.log('AiService initialized successfully with Gemini API Key.');
     }
     async generateJson(systemPrompt, userPrompt, retries = 2) {

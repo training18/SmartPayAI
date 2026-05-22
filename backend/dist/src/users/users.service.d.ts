@@ -4,11 +4,11 @@ export declare class UsersService {
     constructor(prisma: PrismaService);
     findById(id: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         email: string;
         fullName: string;
         role: import("@prisma/client").$Enums.UserRole;
+        createdAt: Date;
+        updatedAt: Date;
         isOnboarded: boolean;
     }>;
     completeOnboarding(id: string): Promise<{

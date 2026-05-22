@@ -5,55 +5,55 @@ export declare class SavedCardsController {
     private readonly savedCards;
     constructor(savedCards: SavedCardsService);
     findAll(user: JwtPayload): Promise<{
-        cardType: import("@prisma/client").$Enums.CardType;
         id: string;
-        bankName: string;
-        rewardType: import("@prisma/client").$Enums.RewardType;
         createdAt: Date;
         updatedAt: Date;
         userId: string;
+        bankName: string;
+        cardType: import("@prisma/client").$Enums.CardType;
         first4: string;
         cardAlias: string | null;
         holderName: string | null;
         monthlyLimit: import("@prisma/client-runtime-utils").Decimal | null;
+        rewardType: import("@prisma/client").$Enums.RewardType;
     }[]>;
     create(user: JwtPayload, dto: CreateSavedCardDto): Promise<{
-        cardType: import("@prisma/client").$Enums.CardType;
         id: string;
-        bankName: string;
-        rewardType: import("@prisma/client").$Enums.RewardType;
         createdAt: Date;
         updatedAt: Date;
         userId: string;
+        bankName: string;
+        cardType: import("@prisma/client").$Enums.CardType;
         first4: string;
         cardAlias: string | null;
         holderName: string | null;
         monthlyLimit: import("@prisma/client-runtime-utils").Decimal | null;
+        rewardType: import("@prisma/client").$Enums.RewardType;
     }>;
     update(user: JwtPayload, id: string, dto: UpdateSavedCardDto): Promise<{
-        cardType: import("@prisma/client").$Enums.CardType;
         id: string;
-        bankName: string;
-        rewardType: import("@prisma/client").$Enums.RewardType;
         createdAt: Date;
         updatedAt: Date;
         userId: string;
+        bankName: string;
+        cardType: import("@prisma/client").$Enums.CardType;
         first4: string;
         cardAlias: string | null;
         holderName: string | null;
         monthlyLimit: import("@prisma/client-runtime-utils").Decimal | null;
+        rewardType: import("@prisma/client").$Enums.RewardType;
     }>;
     remove(user: JwtPayload, id: string): Promise<{
-        cardType: import("@prisma/client").$Enums.CardType;
         id: string;
-        bankName: string;
-        rewardType: import("@prisma/client").$Enums.RewardType;
         createdAt: Date;
         updatedAt: Date;
         userId: string;
+        bankName: string;
+        cardType: import("@prisma/client").$Enums.CardType;
         first4: string;
         cardAlias: string | null;
         holderName: string | null;
         monthlyLimit: import("@prisma/client-runtime-utils").Decimal | null;
+        rewardType: import("@prisma/client").$Enums.RewardType;
     }>;
 }

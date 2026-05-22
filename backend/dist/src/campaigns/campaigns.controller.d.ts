@@ -1,42 +1,82 @@
 import { CampaignsService } from './campaigns.service';
+import { CampaignAggregatorService } from '../campaign-service/campaign-aggregator.service';
 import { CreateCampaignDto } from './dto';
 export declare class CampaignsController {
     private readonly campaigns;
-    constructor(campaigns: CampaignsService);
+    private readonly aggregator;
+    constructor(campaigns: CampaignsService, aggregator: CampaignAggregatorService);
     findAll(category?: string, bankName?: string, cardType?: string): Promise<{
-        installmentCount: number | null;
-        maxReward: import("@prisma/client-runtime-utils").Decimal | null;
-        cardType: import("@prisma/client").$Enums.CardType | null;
-        minAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        category: string;
+        description: string;
+        source: import("@prisma/client").$Enums.CampaignSource;
         id: string;
         title: string;
-        description: string;
-        bankName: string;
-        rewardType: import("@prisma/client").$Enums.RewardType;
-        category: string;
-        rewardRate: import("@prisma/client-runtime-utils").Decimal;
-        isActive: boolean;
-        startsAt: Date;
-        endsAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
+        bankName: string;
+        cardType: import("@prisma/client").$Enums.CardType | null;
+        rewardType: import("@prisma/client").$Enums.RewardType;
+        rewardRate: import("@prisma/client-runtime-utils").Decimal;
+        minAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        maxReward: import("@prisma/client-runtime-utils").Decimal | null;
+        installmentCount: number | null;
+        isActive: boolean;
+        endsAt: Date | null;
+        sourceId: string | null;
+        rawText: string | null;
+        network: string | null;
+        channels: string[];
+        rewardCurrency: string | null;
+        parsedByAi: boolean;
+        fetchedAt: Date | null;
+        startsAt: Date;
     }[]>;
     create(dto: CreateCampaignDto): Promise<{
-        installmentCount: number | null;
-        maxReward: import("@prisma/client-runtime-utils").Decimal | null;
-        cardType: import("@prisma/client").$Enums.CardType | null;
-        minAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        category: string;
+        description: string;
+        source: import("@prisma/client").$Enums.CampaignSource;
         id: string;
         title: string;
-        description: string;
-        bankName: string;
-        rewardType: import("@prisma/client").$Enums.RewardType;
-        category: string;
-        rewardRate: import("@prisma/client-runtime-utils").Decimal;
-        isActive: boolean;
-        startsAt: Date;
-        endsAt: Date | null;
         createdAt: Date;
         updatedAt: Date;
+        bankName: string;
+        cardType: import("@prisma/client").$Enums.CardType | null;
+        rewardType: import("@prisma/client").$Enums.RewardType;
+        rewardRate: import("@prisma/client-runtime-utils").Decimal;
+        minAmount: import("@prisma/client-runtime-utils").Decimal | null;
+        maxReward: import("@prisma/client-runtime-utils").Decimal | null;
+        installmentCount: number | null;
+        isActive: boolean;
+        endsAt: Date | null;
+        sourceId: string | null;
+        rawText: string | null;
+        network: string | null;
+        channels: string[];
+        rewardCurrency: string | null;
+        parsedByAi: boolean;
+        fetchedAt: Date | null;
+        startsAt: Date;
     }>;
+    refresh(): Promise<import("../campaign-service/campaign-aggregator.service").RefreshSummary>;
+    stats(): Promise<{
+        total: number;
+        active: number;
+        sources: {
+            scraped: number;
+            manual: number;
+            seed: number;
+        };
+        byBank: {
+            bankName: string;
+            count: number;
+        }[];
+        byCategory: {
+            category: string;
+            count: number;
+        }[];
+    }>;
+    banks(): {
+        bankCode: string;
+        bankName: string;
+    }[];
 }

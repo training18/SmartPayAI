@@ -1,6 +1,9 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { Module, Logger } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { CacheModule } from '@nestjs/cache-manager';
+import { redisStore } from 'cache-manager-redis-yet';
 
 // ── Infrastructure ───────────────────────────────────────────────────────────
 import { PrismaModule } from './prisma';
@@ -18,6 +21,7 @@ import { MerchantsModule } from './merchants/merchants.module';
 import { AiModule } from './ai/ai.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { SavingsModule } from './savings/savings.module';
+import { CampaignServiceModule } from './campaign-service/campaign-service.module';
 
 /**
  * Root application module.
@@ -29,6 +33,41 @@ import { SavingsModule } from './savings/savings.module';
   imports: [
     // Global config — reads from .env
     ConfigModule.forRoot({ isGlobal: true }),
+
+    // Global Caching — Redis-backed cache-manager with in-memory fallback
+    CacheModule.registerAsync({
+      isGlobal: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => {
+        const isTest = configService.get<string>('NODE_ENV') === 'test' || process.env.NODE_ENV === 'test';
+        if (isTest) {
+          const logger = new Logger('CacheModule');
+          logger.log('Running in test environment. Using in-memory cache.');
+          return {};
+        }
+
+        try {
+          const store = await redisStore({
+            socket: {
+              host: configService.get<string>('REDIS_HOST', 'localhost'),
+              port: configService.get<number>('REDIS_PORT', 6379),
+            },
+          });
+          return { store };
+        } catch (error) {
+          const logger = new Logger('CacheModule');
+          logger.warn(
+            `Failed to connect to Redis (${configService.get('REDIS_HOST', 'localhost')}:${configService.get('REDIS_PORT', 6379)}). ` +
+            `Falling back to in-memory cache. Error: ${error instanceof Error ? error.message : String(error)}`
+          );
+          return {};
+        }
+      },
+    }),
+
+    // Scheduling — enables @Cron decorators for campaign refresh
+    ScheduleModule.forRoot(),
 
     // Database
     PrismaModule,
@@ -43,6 +82,7 @@ import { SavingsModule } from './savings/savings.module';
     AiModule,
     TransactionsModule,
     SavingsModule,
+    CampaignServiceModule,
   ],
   providers: [
     // Global JWT auth guard — all routes require auth unless @Public()

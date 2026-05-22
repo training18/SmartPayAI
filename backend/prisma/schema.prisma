@@ -112,6 +112,15 @@ model SavedCard {
   @@map("saved_cards")
 }
 
+// ── Campaign Source ──────────────────────────────────────────────────────────
+
+enum CampaignSource {
+  MANUAL
+  SEED
+  SCRAPED
+  API
+}
+
 // ── Campaigns ────────────────────────────────────────────────────────────────
 
 model Campaign {
@@ -128,15 +137,38 @@ model Campaign {
   installmentCount Int?
   isActive        Boolean    @default(true)
 
+  // ── Source tracking (real-time campaign intelligence) ──
+  source          CampaignSource @default(MANUAL)
+  sourceId        String?        @unique       // deduplication key
+  rawText         String?        @db.Text      // original marketing text
+  network         String?                      // Visa, Mastercard, Troy, etc.
+  channels        String[]       @default([])  // ["online", "offline"]
+  rewardCurrency  String?                      // MaxiPuan, Worldpuan, chip-para, mil, TL
+  parsedByAi      Boolean        @default(false)
+  fetchedAt       DateTime?
+
   startsAt        DateTime   @default(now())
   endsAt          DateTime?
 
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
+  @@unique([bankName, title, category])
   @@index([category, bankName])
   @@index([isActive])
   @@map("campaigns")
+}
+
+// ── MCC Mappings (Merchant Category Code → spending category) ────────────────
+
+model MccMapping {
+  mcc         String   @id @db.VarChar(4)
+  category    String
+  description String?
+  keywords    String[] @default([])
+
+  @@index([category])
+  @@map("mcc_mappings")
 }
 
 // ── Merchants (AI-analyzed cache) ────────────────────────────────────────────

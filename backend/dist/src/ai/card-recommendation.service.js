@@ -13,7 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CardRecommendationService = void 0;
 const common_1 = require("@nestjs/common");
 const ai_service_1 = require("./ai.service");
-const campaigns_service_1 = require("../campaigns/campaigns.service");
+const campaign_cache_service_1 = require("../campaign-service/campaign-cache.service");
 const saved_cards_service_1 = require("../saved-cards/saved-cards.service");
 const card_scoring_service_1 = require("./card-scoring.service");
 const routing_simulation_service_1 = require("./routing-simulation.service");
@@ -21,15 +21,15 @@ const savings_service_1 = require("../savings/savings.service");
 const prompts_1 = require("./prompts");
 let CardRecommendationService = CardRecommendationService_1 = class CardRecommendationService {
     ai;
-    campaigns;
+    campaignCache;
     savedCards;
     scoring;
     routing;
     savings;
     logger = new common_1.Logger(CardRecommendationService_1.name);
-    constructor(ai, campaigns, savedCards, scoring, routing, savings) {
+    constructor(ai, campaignCache, savedCards, scoring, routing, savings) {
         this.ai = ai;
-        this.campaigns = campaigns;
+        this.campaignCache = campaignCache;
         this.savedCards = savedCards;
         this.scoring = scoring;
         this.routing = routing;
@@ -41,7 +41,9 @@ let CardRecommendationService = CardRecommendationService_1 = class CardRecommen
             return this.emptyRecommendation();
         }
         const bankNames = [...new Set(userCards.map((c) => c.bankName))];
-        const activeCampaigns = await this.campaigns.findByCategory(merchantCategory, bankNames);
+        const activeCampaigns = await this.campaignCache.getActiveCampaigns(merchantCategory, bankNames);
+        this.logger.log(`[Recommend] ${merchantName} (${merchantCategory}) — ${userCards.length} cards, ` +
+            `${activeCampaigns.length} live campaigns from ${bankNames.join(', ')}`);
         const scored = this.scoring.scoreCards(userCards, activeCampaigns, amount);
         const candidates = scored.map((s) => ({
             cardId: s.cardId,
@@ -158,7 +160,7 @@ exports.CardRecommendationService = CardRecommendationService;
 exports.CardRecommendationService = CardRecommendationService = CardRecommendationService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [ai_service_1.AiService,
-        campaigns_service_1.CampaignsService,
+        campaign_cache_service_1.CampaignCacheService,
         saved_cards_service_1.SavedCardsService,
         card_scoring_service_1.CardScoringService,
         routing_simulation_service_1.RoutingSimulationService,

@@ -16,7 +16,7 @@ export class AiService {
   constructor(private readonly config: ConfigService) {
     const apiKey = this.config.getOrThrow<string>('GEMINI_API_KEY');
     const genAI = new GoogleGenerativeAI(apiKey);
-    this.model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    this.model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
     this.logger.log('AiService initialized successfully with Gemini API Key.');
   }
 

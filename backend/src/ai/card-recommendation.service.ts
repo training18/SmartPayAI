@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AiService } from './ai.service';
-import { CampaignsService } from '../campaigns/campaigns.service';
+import { CampaignCacheService } from '../campaign-service/campaign-cache.service';
 import { SavedCardsService } from '../saved-cards/saved-cards.service';
 import { CardScoringService } from './card-scoring.service';
 import { RoutingSimulationService, RoutingPlan } from './routing-simulation.service';
@@ -11,7 +11,8 @@ import type { ScoredCandidatePromptInput } from './prompts/card-recommendation.p
 /**
  * AI Card Recommendation orchestrator.
  *
- *   user cards + active campaigns
+ * Pipeline:
+ *   user cards + live campaigns (from cache/DB)
  *        │
  *        ▼  CardScoringService          (deterministic — campaign matching, math)
  *   scored candidates
@@ -21,6 +22,9 @@ import type { ScoredCandidatePromptInput } from './prompts/card-recommendation.p
  *        │
  *        ▼  RoutingSimulationService    (simulated routing — selected/rejected, savings)
  *   structured Recommendation payload
+ *
+ * KEY CHANGE: Campaigns now come from CampaignCacheService (Redis + DB)
+ * instead of the old static CampaignsService.findByCategory().
  */
 @Injectable()
 export class CardRecommendationService {
@@ -28,7 +32,7 @@ export class CardRecommendationService {
 
   constructor(
     private readonly ai: AiService,
-    private readonly campaigns: CampaignsService,
+    private readonly campaignCache: CampaignCacheService,
     private readonly savedCards: SavedCardsService,
     private readonly scoring: CardScoringService,
     private readonly routing: RoutingSimulationService,
@@ -42,19 +46,25 @@ export class CardRecommendationService {
     amount: number,
     currency = 'TRY',
   ): Promise<AiRecommendationResult> {
-    // 1. Load context
+    // 1. Load user cards
     const userCards = await this.savedCards.findAllByUser(userId);
     if (userCards.length === 0) {
       return this.emptyRecommendation();
     }
 
+    // 2. Fetch live campaigns from cache (Redis → DB fallback)
     const bankNames = [...new Set(userCards.map((c) => c.bankName))];
-    const activeCampaigns = await this.campaigns.findByCategory(merchantCategory, bankNames);
+    const activeCampaigns = await this.campaignCache.getActiveCampaigns(merchantCategory, bankNames);
 
-    // 2. Deterministic scoring — campaign matching + reward computation
+    this.logger.log(
+      `[Recommend] ${merchantName} (${merchantCategory}) — ${userCards.length} cards, ` +
+      `${activeCampaigns.length} live campaigns from ${bankNames.join(', ')}`,
+    );
+
+    // 3. Deterministic scoring — campaign matching + reward computation
     const scored = this.scoring.scoreCards(userCards, activeCampaigns, amount);
 
-    // 3. AI: pick winner + author reasoning over the structured candidates
+    // 4. AI: pick winner + author reasoning over the structured candidates
     const candidates: ScoredCandidatePromptInput[] = scored.map((s) => ({
       cardId: s.cardId,
       bankName: s.bankName,
@@ -125,7 +135,7 @@ export class CardRecommendationService {
       );
     }
 
-    // 4. Routing simulation — build the structured trace we persist
+    // 5. Routing simulation — build the structured trace we persist
     const plan = this.routing.buildPlan({
       scored,
       aiSelectedCardId: aiResult.recommendedCardId,
@@ -143,7 +153,7 @@ export class CardRecommendationService {
         totalSavedAmount: 0,
       };
 
-    // 5. Merge AI-authored per-card rejection lines with the routing plan
+    // 6. Merge AI-authored per-card rejection lines with the routing plan
     const rejectedWithReasons = plan.rejectedCards.map((r) => {
       const aiReason = aiResult.rejectedCards?.find((x) => x.cardId === r.cardId)?.reason;
       return aiReason ? { ...r, reason: aiReason } : r;

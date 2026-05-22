@@ -14,7 +14,7 @@ const card_recommendation_service_1 = require("./card-recommendation.service");
 const card_scoring_service_1 = require("./card-scoring.service");
 const routing_simulation_service_1 = require("./routing-simulation.service");
 const merchants_module_1 = require("../merchants/merchants.module");
-const campaigns_module_1 = require("../campaigns/campaigns.module");
+const campaign_service_module_1 = require("../campaign-service/campaign-service.module");
 const saved_cards_module_1 = require("../saved-cards/saved-cards.module");
 const savings_module_1 = require("../savings/savings.module");
 const ai_controller_1 = require("./ai.controller");
@@ -23,7 +23,7 @@ let AiModule = class AiModule {
 exports.AiModule = AiModule;
 exports.AiModule = AiModule = __decorate([
     (0, common_1.Module)({
-        imports: [merchants_module_1.MerchantsModule, campaigns_module_1.CampaignsModule, saved_cards_module_1.SavedCardsModule, savings_module_1.SavingsModule],
+        imports: [merchants_module_1.MerchantsModule, (0, common_1.forwardRef)(() => campaign_service_module_1.CampaignServiceModule), saved_cards_module_1.SavedCardsModule, savings_module_1.SavingsModule],
         controllers: [ai_controller_1.AiController],
         providers: [
             ai_service_1.AiService,

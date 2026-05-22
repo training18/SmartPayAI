@@ -5,8 +5,6 @@ export declare class VirtualCardsController {
     constructor(virtualCards: VirtualCardsService);
     getMyCard(user: JwtPayload): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         cardNumber: string;
         expiryMonth: number;
         expiryYear: number;
@@ -15,6 +13,8 @@ export declare class VirtualCardsController {
         balance: import("@prisma/client-runtime-utils").Decimal;
         provider: string;
         status: import("@prisma/client").$Enums.VirtualCardStatus;
+        createdAt: Date;
+        updatedAt: Date;
         userId: string;
     } | null>;
 }

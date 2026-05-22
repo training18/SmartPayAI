@@ -124,13 +124,13 @@ export declare class TransactionsController {
             rejectedCards: string | number | boolean | import("@prisma/client/runtime/client").JsonObject | import("@prisma/client/runtime/client").JsonArray | null;
             campaignMatches: string | number | boolean | import("@prisma/client/runtime/client").JsonObject | import("@prisma/client/runtime/client").JsonArray | null;
         } | null;
-        id: string;
+        mcc: string | null;
         description: string | null;
+        id: string;
+        status: import("@prisma/client").$Enums.TransactionStatus;
         createdAt: Date;
         updatedAt: Date;
-        status: import("@prisma/client").$Enums.TransactionStatus;
         userId: string;
-        mcc: string | null;
         merchantId: string | null;
         merchantName: string;
         currency: string;

@@ -5,11 +5,11 @@ export declare class UsersController {
     constructor(users: UsersService);
     getProfile(user: JwtPayload): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         email: string;
         fullName: string;
         role: import("@prisma/client").$Enums.UserRole;
+        createdAt: Date;
+        updatedAt: Date;
         isOnboarded: boolean;
     }>;
     completeOnboarding(user: JwtPayload): Promise<{

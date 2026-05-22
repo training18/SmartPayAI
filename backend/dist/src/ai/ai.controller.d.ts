@@ -21,6 +21,7 @@ export declare class AiController {
         confidence: number;
         reasoning: string;
         merchantId: string;
+        resolvedBy: string;
     }>;
     recommendCard(user: JwtPayload, dto: RecommendCardDto): Promise<import("./card-recommendation.service").AiRecommendationResult>;
 }
